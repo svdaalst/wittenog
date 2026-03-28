@@ -1,0 +1,72 @@
+@inject WitteNog.App.Services.RecordingWorkflowService Workflow
+@implements IDisposable
+@using WitteNog.App.Services
+
+<div class="recording-panel">
+    @{
+        var isThisNote = Workflow.RecordingForFilePath == FilePath;
+    }
+
+    @if (isThisNote && Workflow.State == RecordingWorkflowService.WorkflowState.DownloadingModel)
+    {
+        <span class="transcribing-indicator">
+            <span class="spinner"></span>
+            Model downloaden... @(Workflow.DownloadProgress > 0 ? $"{Workflow.DownloadProgress:P0}" : "")
+        </span>
+    }
+    else if (isThisNote && Workflow.State == RecordingWorkflowService.WorkflowState.Recording)
+    {
+        <button class="record-btn recording" data-action="stop" title="Opname stoppen">
+            <span class="pulse-dot"></span> Stoppen
+        </button>
+    }
+    else if (isThisNote && Workflow.State == RecordingWorkflowService.WorkflowState.Transcribing)
+    {
+        <span class="transcribing-indicator">
+            <span class="spinner"></span> Transcriberen...
+        </span>
+    }
+    else if (Workflow.State == RecordingWorkflowService.WorkflowState.Idle)
+    {
+        <button class="record-btn" data-action="record" title="Opname starten">
+            &#9679; Opnemen
+        </button>
+    }
+
+    @if (_error is not null)
+    {
+        <span class="record-error">@_error</span>
+    }
+</div>
+
+@code {
+    [Parameter] public string FilePath { get; set; } = string.Empty;
+
+    private string? _error;
+
+    protected override void OnInitialized()
+        => Workflow.StateChanged += OnWorkflowStateChanged;
+
+    private void OnWorkflowStateChanged()
+        => InvokeAsync(StateHasChanged);
+
+    public async Task HandleRecordAction(string action)
+    {
+        _error = null;
+        try
+        {
+            if (action == "record")
+                await Workflow.StartAsync(FilePath);
+            else if (action == "stop")
+                await Workflow.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+        => Workflow.StateChanged -= OnWorkflowStateChanged;
+}

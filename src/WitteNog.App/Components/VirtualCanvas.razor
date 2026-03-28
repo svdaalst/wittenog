@@ -1,0 +1,144 @@
+@inject IMediator Mediator
+@inject VaultWatcherService Watcher
+@inject ILinkMetadataService MetadataService
+@inject IJSRuntime JS
+@implements IDisposable
+@using MediatR
+@using WitteNog.App.Models
+@using WitteNog.App.Pages
+@using WitteNog.App.Services
+@using WitteNog.Application.Commands
+@using WitteNog.Application.Queries
+@using WitteNog.Core.Events
+@using WitteNog.Core.Interfaces
+@using WitteNog.Core.Models
+
+@if (Tab.Type == TabType.TasksPage)
+{
+    <TaskDashboard VaultPath="@VaultPath" />
+}
+else
+{
+<div class="virtual-canvas" @ref="_canvasEl">
+    <div class="canvas-header">
+        <h2>
+            @(Tab.Type == TabType.DailyPage ? "📅" : "🏷️") @Tab.Query
+            @if (_isArchived)
+            {
+                <span class="archive-badge">[Gearchiveerd]</span>
+            }
+        </h2>
+        <div class="canvas-header-actions">
+            <button class="collapse-all-btn" @onclick="ToggleCollapseAll"
+                    title="@(_allCollapsed ? "Alles uitklappen" : "Alles inklappen")">
+                @(_allCollapsed ? "▸▸ Uitklappen" : "▾▾ Inklappen")
+            </button>
+            <NewNoteButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnNoteCreated="RefreshAsync" />
+        </div>
+    </div>
+
+    @if (_error != null)
+    {
+        <p class="error-state">Fout: @_error</p>
+    }
+    else if (_notes == null)
+    {
+        <p class="loading">Laden...</p>
+    }
+    else if (!_notes.Any())
+    {
+        <p class="empty-state">Geen notities voor @Tab.Query. Maak er een aan met "+ Nieuw".</p>
+    }
+    else
+    {
+        @foreach (var note in _notes)
+        {
+            <NoteBlock Note="@note" VaultPath="@VaultPath" TabQuery="@Tab.Query" OnSaved="RefreshAsync" />
+        }
+    }
+</div>
+}
+
+@code {
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public TabViewModel Tab { get; set; } = null!;
+
+    private IReadOnlyList<AtomicNote>? _notes;
+    private bool _isArchived;
+    private string? _error;
+    private ElementReference _canvasEl;
+    private bool _allCollapsed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isArchived = Tab.Type == TabType.TopicPage
+                   && MetadataService.IsArchived(VaultPath, Tab.Query);
+
+        MetadataService.MetadataChanged -= OnMetadataChanged;
+        MetadataService.MetadataChanged += OnMetadataChanged;
+
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.NoteChanged += OnExternalChange;
+        Watcher.MetadataChanged -= OnExternalMetadataChange;
+        Watcher.MetadataChanged += OnExternalMetadataChange;
+        if (!string.IsNullOrEmpty(VaultPath))
+            Watcher.StartWatching(VaultPath);
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (string.IsNullOrEmpty(VaultPath)) return;
+
+        try
+        {
+            _error = null;
+            _notes = Tab.Type == TabType.DailyPage
+                ? await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query))
+                : await Mediator.Send(new GetNotesForTopicQuery(VaultPath, Tab.Query));
+
+            if (Tab.Type == TabType.DailyPage && !_notes.Any(n => n.Id == Tab.Query))
+            {
+                await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, $"[[{Tab.Query}]]"));
+                _notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+
+        _allCollapsed = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleCollapseAll()
+    {
+        _allCollapsed = !_allCollapsed;
+        await JS.InvokeVoidAsync("HeadingCollapse.setAll", _canvasEl, _allCollapsed);
+    }
+
+    private void OnMetadataChanged()
+    {
+        _isArchived = Tab.Type == TabType.TopicPage
+                   && MetadataService.IsArchived(VaultPath, Tab.Query);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
+
+    private void OnExternalMetadataChange()
+    {
+        MetadataService.InvalidateCache(VaultPath);
+        _isArchived = Tab.Type == TabType.TopicPage
+                   && MetadataService.IsArchived(VaultPath, Tab.Query);
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.MetadataChanged -= OnExternalMetadataChange;
+        MetadataService.MetadataChanged -= OnMetadataChanged;
+    }
+}

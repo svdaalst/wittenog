@@ -1,0 +1,59 @@
+@using WitteNog.Core.Models
+
+@if (Node.IsFolder)
+{
+    <div class="tree-node">
+        <div class="tree-node-label folder" @onclick="ToggleExpand">
+            <span class="tree-toggle">@(IsExpanded ? "▾" : "▸")</span>
+            <span>@Node.Name</span>
+        </div>
+        @if (IsExpanded)
+        {
+            <div class="tree-node-children">
+                @foreach (var child in Node.Children)
+                {
+                    <SidebarNode Node="@child" Expanded="Expanded"
+                                 OnNavigate="OnNavigate"
+                                 ArchivedLinks="ArchivedLinks"
+                                 OnToggleArchive="OnToggleArchive" />
+                }
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="tree-node @(IsLeafArchived ? "node-archived" : "")">
+        <div class="tree-node-label leaf" @onclick="() => OnNavigate.InvokeAsync(Node.FullLink!)">
+            <span class="tree-toggle"></span>
+            <span class="node-name">@Node.Name</span>
+            @if (OnToggleArchive.HasDelegate)
+            {
+                <button class="node-archive-btn" title="@(IsLeafArchived ? "Dearchiveer" : "Archiveer")"
+                        @onclick="() => OnToggleArchive.InvokeAsync(Node.FullLink!)"
+                        @onclick:stopPropagation="true">
+                    @(IsLeafArchived ? "⟳" : "📦")
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public LinkTreeNode Node { get; set; } = null!;
+    [Parameter] public HashSet<string> Expanded { get; set; } = [];
+    [Parameter] public EventCallback<string> OnNavigate { get; set; }
+    [Parameter] public IReadOnlySet<string> ArchivedLinks { get; set; } = new HashSet<string>();
+    [Parameter] public EventCallback<string> OnToggleArchive { get; set; }
+
+    private bool IsLeafArchived =>
+        Node.FullLink != null && ArchivedLinks.Contains(Node.FullLink);
+
+    private bool IsExpanded
+    {
+        get => Expanded.Contains(Node.Name);
+        set { if (value) Expanded.Add(Node.Name); else Expanded.Remove(Node.Name); }
+    }
+
+    private void ToggleExpand() => IsExpanded = !IsExpanded;
+}

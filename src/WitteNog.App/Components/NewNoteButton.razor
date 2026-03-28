@@ -1,0 +1,75 @@
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@implements IDisposable
+@using MediatR
+@using WitteNog.Application.Commands
+
+<div @ref="_container">
+    <button class="new-note-btn" data-action="open">+ Nieuw</button>
+
+    @if (_showModal)
+    {
+        <div class="modal-overlay" data-action="cancel">
+            <div class="modal">
+                <h3>Nieuwe notitie</h3>
+                <input @bind="_title" @bind:event="oninput" placeholder="Titel..." />
+                <div class="modal-actions">
+                    <button data-action="create">Aanmaken</button>
+                    <button data-action="cancel">Annuleren</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public string PageLink { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnNoteCreated { get; set; }
+
+    private bool _showModal;
+    private string _title = string.Empty;
+    private ElementReference _container;
+    private DotNetObjectReference<NewNoteButton>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("OnboardingDelegate.attach", _container, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandleAction(string action)
+    {
+        if (action == "open")
+        {
+            _showModal = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action == "create")
+        {
+            await CreateAsync();
+        }
+        else if (action == "cancel")
+        {
+            _showModal = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_title)) return;
+        var initialContent = string.IsNullOrWhiteSpace(PageLink) ? "" : $"[[{PageLink}]]";
+        await Mediator.Send(new CreateNoteCommand(VaultPath, _title, initialContent));
+        _title = string.Empty;
+        _showModal = false;
+        await InvokeAsync(StateHasChanged);
+        await OnNoteCreated.InvokeAsync();
+    }
+
+    public void Dispose() => _dotNetRef?.Dispose();
+}

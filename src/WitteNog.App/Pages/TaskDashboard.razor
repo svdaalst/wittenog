@@ -1,0 +1,164 @@
+@using MediatR
+@using WitteNog.App.Services
+@using WitteNog.Application.Commands
+@using WitteNog.Application.Queries
+@using WitteNog.Core.Events
+@using WitteNog.Core.Interfaces
+@using WitteNog.Core.Models
+@inject IMediator Mediator
+@inject VaultContextService VaultContext
+@inject VaultWatcherService Watcher
+@implements IDisposable
+
+<div class="task-dashboard-page">
+    <div class="canvas-header">
+        <h2>☑ Taken</h2>
+    </div>
+
+    @* ── Filters ──────────────────────────────────────────────────────── *@
+    <div class="task-filters">
+        <div class="task-filter-group">
+            <label>Project:</label>
+            <select @bind="_filterProject">
+                <option value="">Alle projecten</option>
+                @foreach (var proj in AvailableProjects)
+                {
+                    <option value="@proj">@proj</option>
+                }
+            </select>
+        </div>
+        <div class="task-filter-group">
+            <label>Prioriteit:</label>
+            <select @bind="_filterPriority">
+                <option value="0">Alle prioriteiten</option>
+                <option value="1">P1 - Hoog</option>
+                <option value="2">P2</option>
+                <option value="3">P3</option>
+                <option value="4">P4</option>
+                <option value="5">P5 - Laag</option>
+            </select>
+        </div>
+    </div>
+
+    @* ── Task table ───────────────────────────────────────────────────── *@
+    @if (_tasks == null)
+    {
+        <p class="loading">Laden...</p>
+    }
+    else if (!FilteredTasks.Any())
+    {
+        <p class="empty-state">Geen openstaande taken gevonden.</p>
+    }
+    else
+    {
+        <table class="task-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Omschrijving</th>
+                    <th>Project</th>
+                    <th>Prioriteit</th>
+                    <th>Deadline</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var task in FilteredTasks)
+                {
+                    <tr class="task-row">
+                        <td>
+                            <input type="checkbox"
+                                   title="Markeer als voltooid"
+                                   @onclick="() => CompleteTask(task)" />
+                        </td>
+                        <td class="task-desc">@task.Description</td>
+                        <td class="task-project">
+                            @if (task.ProjectLink != null)
+                            {
+                                <span class="wiki-chip">[[@task.ProjectLink]]</span>
+                            }
+                        </td>
+                        <td class="task-priority @PriorityClass(task.Priority)">
+                            @(task.Priority.HasValue ? $"P{task.Priority}" : "—")
+                        </td>
+                        <td class="task-deadline @(IsOverdue(task) ? "overdue" : "")">
+                            @(task.Deadline?.ToString("yyyy-MM-dd") ?? "—")
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+
+    private IReadOnlyList<TaskItem>? _tasks;
+    private string _filterProject = string.Empty;
+    private int _filterPriority;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.NoteChanged += OnExternalChange;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (string.IsNullOrEmpty(VaultPath)) return;
+        _tasks = await Mediator.Send(new GetAllTasksQuery(VaultPath));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private IEnumerable<TaskItem> FilteredTasks
+    {
+        get
+        {
+            if (_tasks == null) return [];
+            var result = _tasks.AsEnumerable();
+            if (!string.IsNullOrEmpty(_filterProject))
+                result = result.Where(t =>
+                    string.Equals(t.ProjectLink, _filterProject, StringComparison.OrdinalIgnoreCase));
+            if (_filterPriority > 0)
+                result = result.Where(t => t.Priority == _filterPriority);
+            return result;
+        }
+    }
+
+    private IEnumerable<string> AvailableProjects =>
+        _tasks == null
+            ? []
+            : _tasks
+                .Where(t => t.ProjectLink != null)
+                .Select(t => t.ProjectLink!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(p => p);
+
+    private async Task CompleteTask(TaskItem task)
+    {
+        if (string.IsNullOrEmpty(VaultPath)) return;
+        await Mediator.Send(new CompleteTaskCommand(VaultPath, task.Id));
+        await RefreshAsync();
+    }
+
+    private static string PriorityClass(int? priority) => priority switch
+    {
+        1 => "priority-high",
+        2 => "priority-medium-high",
+        3 => "priority-medium",
+        4 => "priority-medium-low",
+        5 => "priority-low",
+        _ => string.Empty
+    };
+
+    private static bool IsOverdue(TaskItem task) =>
+        task.Deadline.HasValue && task.Deadline.Value < DateOnly.FromDateTime(DateTime.Today);
+
+    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
+
+    public void Dispose()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+    }
+}

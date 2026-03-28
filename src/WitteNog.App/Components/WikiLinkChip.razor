@@ -1,0 +1,22 @@
+@inject INavigationService NavService
+@inject IJSRuntime JS
+@using WitteNog.App.Models
+@using WitteNog.App.Services
+
+@foreach (var link in Links)
+{
+    <span class="wiki-chip" @onclick="() => Navigate(link)">[[<b>@link</b>]]</span>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<string> Links { get; set; } = Array.Empty<string>();
+
+    private async Task Navigate(string link)
+    {
+        var shiftHeld = await JS.InvokeAsync<bool>("isShiftPressed");
+        var type = System.Text.RegularExpressions.Regex.IsMatch(link, @"^\d{4}-\d{2}-\d{2}$")
+            ? TabType.DailyPage : TabType.TopicPage;
+        if (shiftHeld) NavService.OpenNewTab(type, link);
+        else NavService.OpenTab(type, link);
+    }
+}

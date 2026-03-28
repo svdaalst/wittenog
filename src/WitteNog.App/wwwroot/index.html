@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Witte nog?</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="WitteNog.App.styles.css" />
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+    <div class="status-bar-safe-area"></div>
+    <div id="app">Laden...</div>
+
+    <div id="blazor-error-ui">
+        Er is een onverwachte fout opgetreden.
+        <a href="" class="reload">Herladen</a>
+        <a class="dismiss">×</a>
+    </div>
+
+
+    <script>
+        // Shift-toets tracker voor WikiLink navigatie
+        window._shiftPressed = false;
+        document.addEventListener('keydown', e => { if (e.key === 'Shift') window._shiftPressed = true; });
+        document.addEventListener('keyup',   e => { if (e.key === 'Shift') window._shiftPressed = false; });
+        window.isShiftPressed = () => window._shiftPressed;
+    </script>
+    <script src="js/tiptap-bridge.js"></script>
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+</body>
+
+</html>

@@ -1,0 +1,54 @@
+@inject INavigationService NavService
+@inject IJSRuntime JS
+@implements IDisposable
+@using WitteNog.App.Models
+@using WitteNog.App.Services
+
+<div class="tab-bar" @ref="_tabBar">
+    @foreach (var tab in NavService.Tabs)
+    {
+        <div class="tab @(tab.Id == NavService.ActiveTab?.Id ? "active" : "")"
+             data-action="activate" data-tabid="@tab.Id">
+            <span>@(tab.Type == TabType.DailyPage ? "📅 " : tab.Type == TabType.TasksPage ? "☑ " : "🏷️ ")@tab.Title</span>
+            @if (NavService.Tabs.Count > 1)
+            {
+                <button class="close-btn"
+                        data-action="close" data-tabid="@tab.Id">×</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private ElementReference _tabBar;
+    private DotNetObjectReference<TabBar>? _dotNetRef;
+
+    protected override void OnInitialized() => NavService.TabsChanged += Refresh;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("TabDelegate.attach", _tabBar, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public void HandleAction(string action, string tabId)
+    {
+        if (action == "activate")
+            NavService.SetActiveTab(tabId);
+        else if (action == "close")
+            NavService.CloseTab(tabId);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        NavService.TabsChanged -= Refresh;
+        _dotNetRef?.Dispose();
+    }
+}

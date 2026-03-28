@@ -1,0 +1,21 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div id="@_id" class="tiptap-editor"></div>
+
+@code {
+    [Parameter] public string InitialContent { get; set; } = string.Empty;
+    private readonly string _id = $"tiptap-{Guid.NewGuid():N}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("TipTapBridge.init", _id, InitialContent);
+    }
+
+    public async Task<string> GetContentAsync()
+        => await JS.InvokeAsync<string>("TipTapBridge.getContent", _id);
+
+    public async ValueTask DisposeAsync()
+        => await JS.InvokeVoidAsync("TipTapBridge.destroy", _id);
+}

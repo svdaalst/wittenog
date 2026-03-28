@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "WitteNog App",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/WitteNog.App", "-f", "net9.0-windows10.0.19041.0"],
+      "port": 5000
+    },
+    {
+      "name": "Tests (watch)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["watch", "test", "WitteNog.sln", "--no-hot-reload"],
+      "port": 5001
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+@page "/"
+@inject INavigationService NavService
+@inject VaultContextService VaultContext
+@inject VaultWatcherService Watcher
+@inject ILinkMetadataService MetadataService
+@inject IJSRuntime JS
+@implements IDisposable
+@using WitteNog.App.Components
+@using WitteNog.App.Models
+@using WitteNog.App.Pages
+@using WitteNog.App.Services
+@using WitteNog.Core.Interfaces
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+
+@if (!VaultContext.IsConfigured)
+{
+    <OnboardingPage OnVaultSelected="@OnVaultSelected" />
+}
+else
+{
+    <ErrorBoundary @ref="_boundary">
+        <ChildContent>
+            <div class="app-shell">
+                <div class="top-bar" @ref="_topBar">
+                    <button class="hamburger-btn" @onclick="ToggleSidebar" title="Menu">☰</button>
+                    <TabBar />
+                    <button class="tasks-btn" title="Taken" @onclick="OpenTasksTab">☑</button>
+                    <button class="settings-btn" title="Instellingen" data-action="settings">⚙</button>
+                </div>
+                <div class="content-area">
+                    <div class="sidebar-overlay @(_sidebarOpen ? "visible" : "")" @onclick="CloseSidebar"></div>
+                    <WikiLinkSidebar VaultPath="@VaultPath" IsOpen="@_sidebarOpen" />
+                    <main class="canvas-area">
+                        @if (NavService.ActiveTab is not null)
+                        {
+                            <VirtualCanvas VaultPath="@VaultPath" Tab="@NavService.ActiveTab" />
+                        }
+                    </main>
+                </div>
+            </div>
+            <div class="fab-group">
+                <button class="fab" @onclick="OpenTodayFab" title="Vandaag openen">+</button>
+            </div>
+        </ChildContent>
+        <ErrorContent Context="ex">
+            <div style="padding:20px;color:red;font-family:monospace;white-space:pre-wrap">
+                <b>Fout:</b> @ex.Message
+                <br/>@ex.StackTrace
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
+
+    <GlobalRecordingIndicator />
+
+    @if (_showSettings)
+    {
+        <SettingsPage OnClose="@OnSettingsClosed" />
+    }
+
+    @if (_archiveWarning != null)
+    {
+        <div class="archive-guard-toast" @onclick="() => _archiveWarning = null">
+            Waarschuwing: [[  @_archiveWarning]] heeft nog openstaande taken.
+        </div>
+    }
+}
+
+@code {
+    private ErrorBoundary? _boundary;
+    private bool _showSettings;
+    private string? _archiveWarning;
+    private bool _sidebarOpen;
+    private ElementReference _topBar;
+    private DotNetObjectReference<MainPage>? _dotNetRef;
+
+    private string VaultPath => VaultContext.VaultPath ?? string.Empty;
+
+    protected override void OnInitialized()
+    {
+        NavService.TabsChanged += Refresh;
+        VaultContext.VaultPathChanged += OnVaultPathChanged;
+        MetadataService.ArchiveGuardTriggered += OnArchiveGuardTriggered;
+        EnsureVaultDirectories();
+        if (VaultContext.IsConfigured)
+            Watcher.StartWatching(VaultPath);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && VaultContext.IsConfigured)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("OnboardingDelegate.attach", _topBar, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task HandleAction(string action)
+    {
+        if (action == "settings")
+        {
+            _showSettings = true;
+            return InvokeAsync(StateHasChanged);
+        }
+        return Task.CompletedTask;
+    }
+
+    private void OpenTasksTab() => NavService.OpenTab(TabType.TasksPage, "Taken");
+
+    private void ToggleSidebar() => _sidebarOpen = !_sidebarOpen;
+    private void CloseSidebar() => _sidebarOpen = false;
+    private void OpenTodayFab() =>
+        NavService.OpenTab(TabType.DailyPage, DateTimeOffset.Now.ToString("yyyy-MM-dd"));
+
+    private void OnSettingsClosed()
+    {
+        _showSettings = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnArchiveGuardTriggered(string link)
+    {
+        _archiveWarning = link;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void EnsureVaultDirectories()
+    {
+        if (string.IsNullOrEmpty(VaultPath)) return;
+        Directory.CreateDirectory(VaultPath);
+        Directory.CreateDirectory(Path.Combine(VaultPath, ".metadata"));
+        Directory.CreateDirectory(Path.Combine(VaultPath, "recordings"));
+    }
+
+    private void OnVaultSelected()
+    {
+        EnsureVaultDirectories();
+        Watcher.StartWatching(VaultPath);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnVaultPathChanged()
+    {
+        EnsureVaultDirectories();
+        Watcher.StartWatching(VaultPath);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Refresh()
+    {
+        _boundary?.Recover();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        NavService.TabsChanged -= Refresh;
+        VaultContext.VaultPathChanged -= OnVaultPathChanged;
+        MetadataService.ArchiveGuardTriggered -= OnArchiveGuardTriggered;
+        _dotNetRef?.Dispose();
+    }
+}

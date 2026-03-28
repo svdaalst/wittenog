@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\WitteNog.Core\WitteNog.Core.csproj" />
+    <ProjectReference Include="..\WitteNog.Application\WitteNog.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="14.1.0" />
+    <!-- NAudio uses Windows-only WASAPI/WaveIn APIs; excluded from Android build -->
+    <PackageReference Include="NAudio" Version="2.2.1"
+        Condition="'$(TargetFramework)' == 'net9.0'" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.1.0" />
+    <PackageReference Include="Whisper.net" Version="1.7.3" />
+  </ItemGroup>
+
+  <!-- Exclude Windows-only AudioRecorderService from Android build -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <Compile Remove="Audio\AudioRecorderService.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net9.0-android</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

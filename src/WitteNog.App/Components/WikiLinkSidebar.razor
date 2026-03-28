@@ -1,0 +1,142 @@
+@inject IMediator Mediator
+@inject INavigationService NavService
+@inject VaultWatcherService Watcher
+@inject ILinkMetadataService MetadataService
+@implements IDisposable
+@using MediatR
+@using System.Text.RegularExpressions
+@using WitteNog.Application.Helpers
+@using WitteNog.Core.Models
+@using WitteNog.App.Services
+@using WitteNog.Application.Queries
+@using WitteNog.Core.Events
+@using WitteNog.Core.Interfaces
+
+<div class="sidebar @(IsOpen ? "open" : "")">
+    <div class="sidebar-search">
+        <input @bind="_search" @bind:event="oninput" placeholder="Zoeken..." />
+    </div>
+    <div class="sidebar-tree">
+        @foreach (var node in FilteredActiveTopics)
+        {
+            <SidebarNode Node="@node" Expanded="_expanded" OnNavigate="Navigate"
+                         ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+        }
+        @if (_dates != null)
+        {
+            <SidebarNode Node="@_dates" Expanded="_expanded" OnNavigate="Navigate"
+                         ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+        }
+        @if (FilteredArchivedTopics.Count > 0)
+        {
+            <div class="tree-node">
+                <div class="tree-node-label folder archive-header" @onclick="ToggleArchiveSection">
+                    <span class="tree-toggle">@(_archiveSectionExpanded ? "▾" : "▸")</span>
+                    <span>📦 Archief</span>
+                </div>
+                @if (_archiveSectionExpanded)
+                {
+                    <div class="tree-node-children">
+                        @foreach (var node in FilteredArchivedTopics)
+                        {
+                            <SidebarNode Node="@node" Expanded="_expanded" OnNavigate="Navigate"
+                                         ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public bool IsOpen { get; set; }
+
+    private static readonly Regex DateRegex = new(@"^\d{4}-\d{2}-\d{2}$", RegexOptions.Compiled);
+
+    private IReadOnlyList<LinkTreeNode> _activeTopics = [];
+    private IReadOnlyList<LinkTreeNode> _archivedTopics = [];
+    private LinkTreeNode? _dates;
+    private IReadOnlySet<string> _archivedLinks = new HashSet<string>();
+    private string _search = string.Empty;
+    private bool _archiveSectionExpanded;
+    private readonly HashSet<string> _expanded = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.NoteChanged += OnExternalChange;
+        Watcher.MetadataChanged -= OnExternalMetadataChange;
+        Watcher.MetadataChanged += OnExternalMetadataChange;
+        MetadataService.MetadataChanged -= OnMetadataChanged;
+        MetadataService.MetadataChanged += OnMetadataChanged;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (string.IsNullOrEmpty(VaultPath)) return;
+
+        var allLinks = await Mediator.Send(new GetAllWikiLinksQuery(VaultPath));
+        _archivedLinks = MetadataService.GetArchivedLinks(VaultPath);
+        var (active, archived, dates) = LinkTreeBuilder.Build(allLinks, _archivedLinks, DateTimeOffset.Now);
+
+        _activeTopics   = active;
+        _archivedTopics = archived;
+        _dates = dates;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private IReadOnlyList<LinkTreeNode> FilteredActiveTopics =>
+        string.IsNullOrWhiteSpace(_search) ? _activeTopics : Filter(_activeTopics, _search);
+
+    private IReadOnlyList<LinkTreeNode> FilteredArchivedTopics =>
+        string.IsNullOrWhiteSpace(_search) ? _archivedTopics : Filter(_archivedTopics, _search);
+
+    private static IReadOnlyList<LinkTreeNode> Filter(IReadOnlyList<LinkTreeNode> nodes, string query)
+    {
+        var result = new List<LinkTreeNode>();
+        foreach (var node in nodes)
+        {
+            var filteredChildren = Filter(node.Children, query);
+            var selfMatches = node.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                           || (node.FullLink?.Contains(query, StringComparison.OrdinalIgnoreCase) == true);
+            if (selfMatches || filteredChildren.Count > 0)
+                result.Add(node with { Children = filteredChildren });
+        }
+        return result.AsReadOnly();
+    }
+
+    private void Navigate(string link)
+    {
+        var type = DateRegex.IsMatch(link) ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, link);
+    }
+
+    private Task ToggleArchive(string link)
+    {
+        var currentlyArchived = MetadataService.IsArchived(VaultPath, link);
+        MetadataService.SetArchivedStatus(VaultPath, link, !currentlyArchived);
+        return Task.CompletedTask;
+    }
+
+    private void ToggleArchiveSection() => _archiveSectionExpanded = !_archiveSectionExpanded;
+
+    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
+    private void OnMetadataChanged() => InvokeAsync(RefreshAsync);
+
+    private void OnExternalMetadataChange()
+    {
+        MetadataService.InvalidateCache(VaultPath);
+        InvokeAsync(RefreshAsync);
+    }
+
+    public void Dispose()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.MetadataChanged -= OnExternalMetadataChange;
+        MetadataService.MetadataChanged -= OnMetadataChanged;
+    }
+}

@@ -1,0 +1,120 @@
+@inject WitteNog.App.Services.RecordingWorkflowService Workflow
+@inject WitteNog.App.Services.VaultContextService VaultContext
+@inject WitteNog.Core.Interfaces.IVaultSettings VaultSettings
+@implements IDisposable
+@using WitteNog.App.Services
+
+@if (Workflow.State != RecordingWorkflowService.WorkflowState.Idle || _error is not null)
+{
+    <div class="global-recording-indicator">
+        @if (Workflow.State == RecordingWorkflowService.WorkflowState.DownloadingModel)
+        {
+            <span class="pulse-dot"></span>
+            <span>Model downloaden... @(Workflow.DownloadProgress > 0 ? $"{Workflow.DownloadProgress:P0}" : "")</span>
+        }
+        else if (Workflow.State == RecordingWorkflowService.WorkflowState.Recording)
+        {
+            <span class="pulse-dot"></span>
+            <span>Opname bezig</span>
+            <button class="record-stop-global" @onclick="StopAsync">Stoppen</button>
+        }
+        else if (Workflow.State == RecordingWorkflowService.WorkflowState.WaitingForLanguage)
+        {
+            <div class="language-picker-popup">
+                <span class="language-picker-label">Taal van de opname?</span>
+                <select class="language-picker-select" @bind="_selectedLanguage">
+                    @foreach (var (langCode, langName) in _availableLanguages)
+                    {
+                        <option value="@langCode">@langName</option>
+                    }
+                </select>
+                <div class="language-picker-actions">
+                    <button class="btn-primary" @onclick="ConfirmAsync">Transcriberen</button>
+                    <button @onclick="CancelAsync">Annuleren</button>
+                </div>
+            </div>
+        }
+        else if (Workflow.State == RecordingWorkflowService.WorkflowState.Transcribing)
+        {
+            <span class="spinner"></span>
+            <span>Transcriberen...</span>
+        }
+
+        @if (_error is not null)
+        {
+            <span class="record-error">@_error</span>
+            <button class="record-error-dismiss" @onclick="() => _error = null" title="Sluiten">✕</button>
+        }
+    </div>
+}
+
+@code {
+    private string? _error;
+    private string _selectedLanguage = "nl";
+    private IReadOnlyList<(string Code, string Name)> _availableLanguages = [];
+
+    protected override void OnInitialized()
+    {
+        Workflow.StateChanged += OnStateChanged;
+        RefreshLanguages();
+    }
+
+    private void OnStateChanged()
+    {
+        _error = Workflow.LastError;
+        // Refresh available languages each time the picker appears (settings may have changed).
+        if (Workflow.State == RecordingWorkflowService.WorkflowState.WaitingForLanguage)
+            RefreshLanguages();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshLanguages()
+    {
+        if (VaultContext.VaultPath is null)
+        {
+            _availableLanguages = KnownLanguages.All;
+            _selectedLanguage = "nl";
+            return;
+        }
+
+        var ts = VaultSettings.GetTranscriptionSettings(VaultContext.VaultPath);
+        _availableLanguages = ts.Languages
+            .Select(code => (code, KnownLanguages.GetName(code)))
+            .ToList();
+
+        // Default = first configured language, or "nl" as fallback.
+        _selectedLanguage = _availableLanguages.Count > 0
+            ? _availableLanguages[0].Code
+            : "nl";
+    }
+
+    private async Task StopAsync()
+    {
+        _error = null;
+        try { await Workflow.StopAsync(); }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        _error = null;
+        try { await Workflow.ConfirmTranscriptionAsync(_selectedLanguage); }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        _error = null;
+        await Workflow.CancelTranscriptionAsync();
+    }
+
+    public void Dispose() => Workflow.StateChanged -= OnStateChanged;
+}

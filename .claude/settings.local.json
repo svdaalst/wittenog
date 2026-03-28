@@ -68,8 +68,7 @@
       "Read(//d/Nextcloud/git/WitteNog/$USERPROFILE/AppData/Local/Android/**)",
       "Bash(dotnet package:*)",
       "Read(//d/Nextcloud/git/WitteNog/$USERPROFILE/.android/**)",
-      "Read(//d/Nextcloud/git/WitteNog/$USERPROFILE/AppData/Local/**)",
-      "Bash(git config:*)"
+      "Read(//d/Nextcloud/git/WitteNog/$USERPROFILE/AppData/Local/**)"
     ]
   },
   "disableAllHooks": true

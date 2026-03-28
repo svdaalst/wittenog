@@ -1,0 +1,1020 @@
+/* ============================================================
+   Witte nog? — Design tokens
+   ============================================================ */
+:root {
+    --bg:          #1a1a2e;
+    --surface:     #16213e;
+    --surface-2:   #0f3460;
+    --accent:      #e94560;
+    --accent-dim:  rgba(233, 69, 96, 0.15);
+    --text:        #eaeaea;
+    --text-muted:  #8892a4;
+    --border:      rgba(255,255,255,0.08);
+    --radius:      8px;
+    --tab-h:       40px;
+}
+
+/* ============================================================
+   Reset & base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    height: 100%;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+}
+
+#app { height: 100vh; display: flex; flex-direction: column; }
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.content-area {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.canvas-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 16px;
+}
+
+/* ============================================================
+   Sidebar — WikiLink Navigator
+   ============================================================ */
+.sidebar {
+    width: 260px;
+    min-width: 180px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.sidebar-search {
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.sidebar-search input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.sidebar-search input:focus { border-color: var(--accent); }
+.sidebar-search input::placeholder { color: var(--text-muted); }
+
+.sidebar-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+/* Tree nodes */
+.tree-node { user-select: none; }
+
+.tree-node-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    transition: background 0.1s, color 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 4px;
+    margin: 0 4px;
+}
+.tree-node-label:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.tree-node-label.leaf:hover { color: var(--accent); }
+
+.tree-node-children { padding-left: 14px; }
+
+.tree-toggle {
+    font-size: 10px;
+    color: var(--text-muted);
+    width: 12px;
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+/* ============================================================
+   Tab bar — VS Code stijl
+   ============================================================ */
+.tab-bar {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    height: var(--tab-h);
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    min-width: 120px;
+    max-width: 200px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.tab:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+
+.tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    background: var(--surface);
+}
+
+.tab span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.close-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+/* ============================================================
+   Virtual canvas
+   ============================================================ */
+.virtual-canvas {
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+.canvas-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.canvas-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.canvas-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.collapse-all-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.collapse-all-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+.loading, .empty-state {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 32px 0;
+    text-align: center;
+}
+
+/* ============================================================
+   Note block — naadloos, alsof het één document is
+   ============================================================ */
+.note-block {
+    padding: 4px 0 20px;
+    cursor: text;
+    border-bottom: 1px solid var(--border);
+    transition: border-color 0.15s;
+    position: relative;
+}
+
+.note-block:last-child { border-bottom: none; }
+
+.note-block:hover { border-bottom-color: rgba(233, 69, 96, 0.2); }
+
+.note-block.editing {
+    padding: 4px 0 12px;
+    cursor: default;
+}
+
+/* Actions bar: groups record + delete buttons, shown on hover */
+.note-actions-bar {
+    position: absolute;
+    top: 6px;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.note-block:hover .note-actions-bar { opacity: 1; }
+
+/* Keep bar visible while recording or transcribing */
+.note-block .note-actions-bar:has(.recording),
+.note-block .note-actions-bar:has(.transcribing-indicator) { opacity: 1; }
+
+.note-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s;
+}
+
+.note-delete-btn:hover { color: var(--accent); }
+
+/* ============================================================
+   Recording panel
+   ============================================================ */
+.recording-panel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.record-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 2px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.record-btn:hover { background: rgba(255,255,255,0.10); color: var(--text); }
+
+.record-btn.recording {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.pulse-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1s ease-in-out infinite;
+    margin-right: 3px;
+    vertical-align: middle;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.35; transform: scale(0.8); }
+}
+
+.transcribing-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.spinner {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 2px solid rgba(255,255,255,0.12);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.record-error {
+    font-size: 11px;
+    color: #e57373;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   Global recording indicator — fixed top-right, always visible
+   ============================================================ */
+.global-recording-indicator {
+    position: fixed;
+    top: 46px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(22, 33, 62, 0.96);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--text);
+    box-shadow: 0 2px 14px rgba(0,0,0,0.45);
+    pointer-events: all;
+}
+
+.record-stop-global {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 12px;
+    padding: 2px 9px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.record-stop-global:hover { background: rgba(233, 69, 96, 0.3); }
+
+/* Volledig markdown-content */
+.note-content {
+    line-height: 1.7;
+    color: var(--text);
+}
+
+.note-content h1 { font-size: 22px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+.note-content h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.note-content h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+
+/* Collapsible heading toggles */
+.heading-toggle {
+    display: inline-block;
+    width: 16px;
+    margin-right: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 1px 2px;
+    transition: color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.heading-toggle:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+/* Animated section wrapper */
+.heading-section {
+    overflow: hidden;
+    max-height: 4000px;
+    transition: max-height 0.2s ease;
+}
+
+.heading-section.collapsed { max-height: 0; }
+.note-content p  { margin-bottom: 8px; color: var(--text); }
+.note-content ul, .note-content ol { margin: 0 0 8px 20px; }
+.note-content li { margin-bottom: 2px; }
+.note-content code {
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 13px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+}
+.note-content pre {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    margin-bottom: 8px;
+}
+.note-content blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+.note-content strong { font-weight: 600; }
+.note-content em { font-style: italic; color: var(--text-muted); }
+
+/* WikiLinks in rendered tekst */
+.wiki-link {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+.wiki-link:hover { color: rgba(233, 69, 96, 0.7); }
+
+.note-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.note-actions button {
+    padding: 5px 14px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.note-actions button:first-child {
+    background: var(--accent);
+    color: #fff;
+}
+
+.note-actions button:last-child {
+    background: rgba(255,255,255,0.08);
+    color: var(--text-muted);
+}
+
+.note-actions button:hover { opacity: 0.85; }
+
+/* ============================================================
+   WikiLink chip
+   ============================================================ */
+.wiki-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--accent-dim);
+    border: 1px solid rgba(233, 69, 96, 0.3);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+}
+.wiki-chip:hover { background: rgba(233, 69, 96, 0.28); }
+.wiki-chip b { font-weight: 600; }
+
+/* ============================================================
+   Nieuw-notitie knop
+   ============================================================ */
+.new-note-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.new-note-btn:hover { opacity: 0.85; }
+
+/* ============================================================
+   Modal
+   ============================================================ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+}
+
+.modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 28px;
+    min-width: 360px;
+    max-width: 480px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.modal h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: var(--text);
+}
+
+.modal input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    margin-bottom: 14px;
+    transition: border-color 0.15s;
+}
+.modal input:focus { border-color: var(--accent); }
+
+.modal-body {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.modal-actions button {
+    padding: 7px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.modal-actions button:first-child {
+    background: var(--accent);
+    color: #fff;
+}
+
+.modal-actions button:last-child {
+    background: rgba(255,255,255,0.08);
+    color: var(--text-muted);
+}
+
+.modal-actions button:hover { opacity: 0.85; }
+
+/* ============================================================
+   TipTap editor
+   ============================================================ */
+.tiptap-editor {
+    min-height: 120px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    outline: none;
+}
+
+.tiptap-editor:focus-within { border-color: var(--accent); }
+
+.tiptap-content { outline: none; }
+.tiptap-content p { margin-bottom: 0.5em; }
+.tiptap-content h1, .tiptap-content h2, .tiptap-content h3 {
+    font-weight: 600;
+    margin-bottom: 0.4em;
+}
+
+/* ============================================================
+   Scrollbar styling
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* ============================================================
+   Blazor error UI
+   ============================================================ */
+#blazor-error-ui {
+    background: #b32121;
+    color: #fff;
+    bottom: 0;
+    left: 0;
+    padding: 0.6rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+    display: none;
+}
+
+#blazor-error-ui .dismiss { cursor: pointer; float: right; }
+
+/* ============================================================
+   iOS safe area
+   ============================================================ */
+.status-bar-safe-area { display: none; }
+
+@supports (-webkit-touch-callout: none) {
+    .status-bar-safe-area {
+        display: flex;
+        position: sticky;
+        top: 0;
+        height: env(safe-area-inset-top);
+        background: var(--bg);
+        width: 100%;
+        z-index: 1;
+    }
+}
+
+/* ============================================================
+   Logisch archief
+   ============================================================ */
+
+.tree-node { position: relative; }
+
+/* Archief-icoonknop aan de rechterkant van een leaf-node */
+.node-archive-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--text-muted);
+    transition: opacity 0.15s, color 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.tree-node-label:hover .node-archive-btn { opacity: 1; }
+.node-archive-btn:hover { color: var(--accent); }
+
+/* Gearchiveerde leaf-node (in de archief-sectie) */
+.node-archived .tree-node-label { opacity: 0.55; font-style: italic; }
+
+/* "📦 Archief" sectie-header in de sidebar */
+.archive-header { margin-top: 12px; color: var(--text-muted); }
+
+/* [Gearchiveerd] badge naast paginatitel */
+.archive-badge {
+    font-size: 0.7em;
+    color: var(--text-muted);
+    margin-left: 8px;
+    vertical-align: middle;
+    font-weight: normal;
+}
+
+/* ============================================================
+   Top bar (tab bar + settings button)
+   ============================================================ */
+.top-bar {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.settings-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    padding: 4px 10px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.15s;
+}
+.settings-btn:hover { color: var(--text); }
+
+/* ============================================================
+   Onboarding page
+   ============================================================ */
+.onboarding {
+    display: flex;
+    height: 100vh;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+}
+
+.onboarding-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 420px;
+}
+
+.onboarding-card h1 {
+    font-size: 22px;
+    margin-bottom: 12px;
+    color: var(--text);
+}
+
+.onboarding-card p {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 24px;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.85; }
+
+.onboarding-input {
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: monospace;
+    box-sizing: border-box;
+}
+.onboarding-input:focus { outline: none; border-color: var(--accent); }
+
+.onboarding-error {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #e57373;
+}
+
+/* ============================================================
+   Settings modal
+   ============================================================ */
+.settings-modal { min-width: 420px; }
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.settings-header h3 {
+    margin: 0;
+}
+
+.settings-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.settings-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+}
+
+.settings-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 20px;
+}
+
+.settings-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.settings-path {
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border-radius: 5px;
+    padding: 6px 10px;
+    word-break: break-all;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.settings-actions button {
+    padding: 7px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-muted);
+    transition: opacity 0.15s;
+}
+.settings-actions button:first-child {
+    background: var(--accent);
+    color: #fff;
+}
+.settings-actions button:hover { opacity: 0.85; }
+
+.settings-error {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #e57373;
+}
+
+.settings-success {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #81c784;
+}
+
+/* ── Language picker popup (GlobalRecordingIndicator) ───────────────────── */
+.language-picker-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    min-width: 240px;
+}
+
+.language-picker-label {
+    font-size: 0.85rem;
+    color: var(--text-muted, #aaa);
+}
+
+.language-picker-select {
+    background: var(--bg);
+    color: var(--text, #eee);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+.language-picker-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── Settings page transcription section ────────────────────────────────── */
+.settings-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 16px 0;
+}
+
+.settings-section-title {
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+    color: var(--accent);
+}
+
+.settings-row--column {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.settings-select {
+    background: var(--bg);
+    color: var(--text, #eee);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 4px 8px;
+    min-width: 200px;
+}
+
+.settings-select--small {
+    min-width: 160px;
+}
+
+.language-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.language-list-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.language-name {
+    flex: 1;
+    font-size: 0.9rem;
+}
+
+.lang-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text, #eee);
+    border-radius: 3px;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.lang-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.lang-btn--remove {
+    border-color: rgba(233, 69, 96, 0.4);
+    color: var(--accent);
+}
+
+.lang-btn--remove:hover {
+    background: rgba(233, 69, 96, 0.15);
+}
+
+.language-add-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: var(--text, #eee);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-success {
+    color: #4caf50;
+    font-size: 0.85rem;
+    margin: 4px 0 0;
+}

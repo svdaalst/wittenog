@@ -1,0 +1,278 @@
+@using WitteNog.App.Services
+@using WitteNog.Core.Interfaces
+@using WitteNog.Core.Models
+@using Microsoft.JSInterop
+@inject VaultContextService VaultContext
+@inject IVaultSettings VaultSettings
+@inject FolderPickerService FolderPicker
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="modal-overlay">
+    <div class="modal settings-modal" @ref="_modal">
+        <div class="settings-header">
+            <h3>Instellingen</h3>
+            <button class="settings-close-btn" data-action="close" title="Sluiten">✕</button>
+        </div>
+
+        @* ── Vault pad ───────────────────────────────────────────────── *@
+        <div class="settings-row">
+            <span class="settings-label">Huidige map:</span>
+            <code class="settings-path">@VaultContext.VaultPath</code>
+        </div>
+        @if (OperatingSystem.IsAndroid())
+        {
+            <div class="settings-actions">
+                <button class="btn-primary" data-action="pick-vault">Kies nieuwe map</button>
+            </div>
+        }
+        else
+        {
+            <div class="settings-row">
+                <span class="settings-label">Nieuwe map:</span>
+                <input id="settings-path-input"
+                       class="onboarding-input"
+                       type="text"
+                       value="@_newPath" />
+            </div>
+            <div class="settings-actions">
+                <button class="btn-primary" data-action="save">Map opslaan</button>
+            </div>
+        }
+        @if (_error != null)
+        {
+            <p class="settings-error">@_error</p>
+        }
+
+        @* ── Transcriptie ─────────────────────────────────────────────── *@
+        <hr class="settings-divider" />
+        <h4 class="settings-section-title">Transcriptie</h4>
+
+        <div class="settings-row">
+            <span class="settings-label">Model:</span>
+            <select id="settings-model-select" class="settings-select">
+                <option value="Tiny"   selected="@(_transcriptionModel == "Tiny")">Tiny (39 MB, snelst)</option>
+                <option value="Base"   selected="@(_transcriptionModel == "Base")">Base (142 MB, standaard)</option>
+                @if (!OperatingSystem.IsAndroid())
+                {
+                    <option value="Small"  selected="@(_transcriptionModel == "Small")">Small (461 MB)</option>
+                    <option value="Medium" selected="@(_transcriptionModel == "Medium")">Medium (1,5 GB)</option>
+                    <option value="Large"  selected="@(_transcriptionModel == "Large")">Large (2,9 GB, nauwkeurigst)</option>
+                }
+            </select>
+        </div>
+
+        <div class="settings-row settings-row--column">
+            <span class="settings-label">Beschikbare talen <small>(volgorde = dropdown-volgorde bij opname)</small>:</span>
+            <ul class="language-list">
+                @for (int i = 0; i < _languages.Count; i++)
+                {
+                    var idx = i;
+                    var langCode = _languages[idx];
+                    <li class="language-list-item">
+                        <span class="language-name">@KnownLanguages.GetName(langCode) <small>(@langCode)</small></span>
+                        <button class="lang-btn" title="Omhoog"
+                                disabled="@(idx == 0)"
+                                data-action="lang-up-@idx">↑</button>
+                        <button class="lang-btn" title="Omlaag"
+                                disabled="@(idx == _languages.Count - 1)"
+                                data-action="lang-down-@idx">↓</button>
+                        <button class="lang-btn lang-btn--remove" title="Verwijderen"
+                                data-action="lang-remove-@idx">✕</button>
+                    </li>
+                }
+            </ul>
+
+            @if (_addableLanguages.Count > 0)
+            {
+                <div class="language-add-row">
+                    <select id="settings-lang-add-select" class="settings-select settings-select--small">
+                        @foreach (var (langCode, langName) in _addableLanguages)
+                        {
+                            <option value="@langCode" selected="@(langCode == _languageToAdd)">@langName</option>
+                        }
+                    </select>
+                    <button class="btn-secondary" data-action="lang-add">+ Toevoegen</button>
+                </div>
+            }
+        </div>
+
+        <div class="settings-actions">
+            <button class="btn-primary" data-action="save-transcription">Transcriptie opslaan</button>
+        </div>
+        @if (_transcriptionSaved)
+        {
+            <p class="settings-success">Instellingen opgeslagen.</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private ElementReference _modal;
+    private DotNetObjectReference<SettingsPage>? _dotNetRef;
+    private string _newPath = string.Empty;
+    private string? _error;
+
+    private string _transcriptionModel = "Base";
+    private List<string> _languages = ["nl"];
+    private string _languageToAdd = string.Empty;
+    private bool _transcriptionSaved;
+
+    private IReadOnlyList<(string Code, string Name)> _addableLanguages =>
+        KnownLanguages.All
+            .Where(l => !_languages.Contains(l.Code))
+            .ToList();
+
+    protected override void OnInitialized()
+    {
+        _newPath = VaultContext.VaultPath ?? string.Empty;
+        LoadTranscriptionSettings();
+    }
+
+    private void LoadTranscriptionSettings()
+    {
+        if (VaultContext.VaultPath is null) return;
+        var ts = VaultSettings.GetTranscriptionSettings(VaultContext.VaultPath);
+        _transcriptionModel = ts.Model;
+        // On Android, large models are impractical — cap at Base
+        if (OperatingSystem.IsAndroid() && _transcriptionModel is "Small" or "Medium" or "Large")
+            _transcriptionModel = "Base";
+        _languages = [..ts.Languages];
+        _languageToAdd = _addableLanguages.FirstOrDefault().Code ?? string.Empty;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("OnboardingDelegate.attach", _modal, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandleAction(string action)
+    {
+        if (action == "pick-vault" && OperatingSystem.IsAndroid())
+        {
+            await PickAndroidVault();
+        }
+        else if (action == "save")
+        {
+            await SavePath();
+        }
+        else if (action == "close")
+        {
+            await OnClose.InvokeAsync();
+        }
+        else if (action.StartsWith("lang-up-") &&
+                 int.TryParse(action["lang-up-".Length..], out var upIdx))
+        {
+            MoveLanguage(upIdx, -1);
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action.StartsWith("lang-down-") &&
+                 int.TryParse(action["lang-down-".Length..], out var downIdx))
+        {
+            MoveLanguage(downIdx, 1);
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action.StartsWith("lang-remove-") &&
+                 int.TryParse(action["lang-remove-".Length..], out var removeIdx))
+        {
+            RemoveLanguage(removeIdx);
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action == "lang-add")
+        {
+            _languageToAdd = await JS.InvokeAsync<string>("getInputValue", "settings-lang-add-select");
+            AddLanguage();
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action == "save-transcription")
+        {
+            _transcriptionModel = await JS.InvokeAsync<string>("getInputValue", "settings-model-select");
+            SaveTranscriptionSettings();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task PickAndroidVault()
+    {
+        _error = null;
+        var picked = await FolderPicker.PickFolderAsync();
+        if (picked is null) return;
+        try
+        {
+            Directory.CreateDirectory(picked);
+            Directory.CreateDirectory(Path.Combine(picked, ".metadata"));
+            VaultContext.SetVaultPath(picked);
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Kon map niet openen: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SavePath()
+    {
+        _error = null;
+        var typed = await JS.InvokeAsync<string>("getInputValue", "settings-path-input");
+        var trimmed = typed.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return;
+        try
+        {
+            Directory.CreateDirectory(trimmed);
+            Directory.CreateDirectory(Path.Combine(trimmed, ".metadata"));
+            VaultContext.SetVaultPath(trimmed);
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Ongeldig pad: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void MoveLanguage(int index, int direction)
+    {
+        var newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= _languages.Count) return;
+        (_languages[index], _languages[newIndex]) = (_languages[newIndex], _languages[index]);
+        _transcriptionSaved = false;
+    }
+
+    private void RemoveLanguage(int index)
+    {
+        _languages.RemoveAt(index);
+        _languageToAdd = _addableLanguages.FirstOrDefault().Code ?? string.Empty;
+        _transcriptionSaved = false;
+    }
+
+    private void AddLanguage()
+    {
+        if (string.IsNullOrEmpty(_languageToAdd)) return;
+        if (_languages.Contains(_languageToAdd)) return;
+        _languages.Add(_languageToAdd);
+        _languageToAdd = _addableLanguages.FirstOrDefault().Code ?? string.Empty;
+        _transcriptionSaved = false;
+    }
+
+    private void SaveTranscriptionSettings()
+    {
+        if (VaultContext.VaultPath is null) return;
+        VaultSettings.SaveTranscriptionSettings(VaultContext.VaultPath,
+            new TranscriptionSettings
+            {
+                Languages = [.._languages],
+                Model = _transcriptionModel,
+            });
+        _transcriptionSaved = true;
+    }
+
+    public void Dispose() => _dotNetRef?.Dispose();
+}

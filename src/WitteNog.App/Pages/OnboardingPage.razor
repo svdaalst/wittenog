@@ -1,0 +1,109 @@
+@using WitteNog.App.Services
+@using Microsoft.JSInterop
+@inject VaultContextService VaultContext
+@inject FolderPickerService FolderPicker
+@inject IJSRuntime JS
+
+<div class="onboarding">
+    <div class="onboarding-card" @ref="_card">
+        <h1>Welkom bij WitteNog</h1>
+        @if (OperatingSystem.IsAndroid())
+        {
+            <p>Je notities worden opgeslagen in app-opslag. Je kunt een externe map kiezen
+               om van te importeren, of direct starten met de standaardlocatie.</p>
+            <code class="settings-path" style="display:block;margin-bottom:12px;word-break:break-all">@_path</code>
+            <button class="btn-secondary" style="margin-bottom:12px" @onclick="PickAndroidFolder">
+                Kies externe map
+            </button>
+            <br />
+        }
+        else
+        {
+            <p>Geef het pad op naar de map waar je notities worden opgeslagen.<br />
+               De map wordt aangemaakt als hij nog niet bestaat.</p>
+            <input id="onboarding-path-input"
+                   class="onboarding-input"
+                   type="text"
+                   placeholder="Bijv. D:\Notities"
+                   value="@_path" />
+        }
+        <button class="btn-primary" data-action="confirm">Bevestigen</button>
+        @if (_error != null)
+        {
+            <p class="onboarding-error">@_error</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnVaultSelected { get; set; }
+
+    private ElementReference _card;
+    private DotNetObjectReference<OnboardingPage>? _dotNetRef;
+    private string _path = string.Empty;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (OperatingSystem.IsAndroid())
+            _path = Path.Combine(FileSystem.AppDataDirectory, "vault");
+        else
+            _path = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments)
+                    + System.IO.Path.DirectorySeparatorChar + "WitteNog";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("OnboardingDelegate.attach", _card, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandleAction(string action)
+    {
+        if (action == "confirm")
+            await ConfirmPath();
+    }
+
+    private async Task PickAndroidFolder()
+    {
+        var picked = await FolderPicker.PickFolderAsync();
+        if (picked is not null)
+        {
+            _path = picked;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ConfirmPath()
+    {
+        _error = null;
+        string trimmed;
+        if (OperatingSystem.IsAndroid())
+        {
+            trimmed = _path.Trim();
+        }
+        else
+        {
+            var typed = await JS.InvokeAsync<string>("getInputValue", "onboarding-path-input");
+            trimmed = typed.Trim();
+        }
+        if (string.IsNullOrEmpty(trimmed)) return;
+        try
+        {
+            System.IO.Directory.CreateDirectory(trimmed);
+            VaultContext.SetVaultPath(trimmed);
+            await OnVaultSelected.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Ongeldig pad: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose() => _dotNetRef?.Dispose();
+}

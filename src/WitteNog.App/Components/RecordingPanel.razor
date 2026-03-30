@@ -1,4 +1,5 @@
 @inject WitteNog.App.Services.RecordingWorkflowService Workflow
+@inject WitteNog.App.Services.FilePickerService FilePicker
 @implements IDisposable
 @using WitteNog.App.Services
 
@@ -31,6 +32,9 @@
         <button class="record-btn" data-action="record" title="Opname starten">
             &#9679; Opnemen
         </button>
+        <button class="record-btn record-btn-file" @onclick="PickAndTranscribeAsync" title="Audio bestand transcriberen">
+            &#128196; Transcribeer bestand
+        </button>
     }
 
     @if (_error is not null)
@@ -49,6 +53,19 @@
 
     private void OnWorkflowStateChanged()
         => InvokeAsync(StateHasChanged);
+
+    private async Task PickAndTranscribeAsync()
+    {
+        _error = null;
+        try
+        {
+            var path = await FilePicker.PickAudioFileAsync();
+            if (path is not null)
+                await Workflow.StartFromFileAsync(FilePath, path);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        await InvokeAsync(StateHasChanged);
+    }
 
     public async Task HandleRecordAction(string action)
     {

@@ -3,6 +3,7 @@
 @inject VaultContextService VaultContext
 @inject VaultWatcherService Watcher
 @inject ILinkMetadataService MetadataService
+@inject IUpdateService UpdateService
 @inject IJSRuntime JS
 @implements IDisposable
 @using WitteNog.App.Components
@@ -64,6 +65,22 @@ else
             Waarschuwing: [[  @_archiveWarning]] heeft nog openstaande taken.
         </div>
     }
+
+    @if (_updateVersion != null)
+    {
+        <div class="update-toast">
+            @if (_updating)
+            {
+                <span>Bijwerken… @_updateProgress%</span>
+            }
+            else
+            {
+                <span>Versie @_updateVersion beschikbaar</span>
+                <button @onclick="ApplyUpdate">Bijwerken</button>
+                <button @onclick="() => _updateVersion = null">✕</button>
+            }
+        </div>
+    }
 }
 
 @code {
@@ -73,6 +90,9 @@ else
     private bool _sidebarOpen;
     private ElementReference _topBar;
     private DotNetObjectReference<MainPage>? _dotNetRef;
+    private string? _updateVersion;
+    private bool _updating;
+    private int _updateProgress;
 
     private string VaultPath => VaultContext.VaultPath ?? string.Empty;
 
@@ -84,6 +104,45 @@ else
         EnsureVaultDirectories();
         if (VaultContext.IsConfigured)
             Watcher.StartWatching(VaultPath);
+        _ = CheckForUpdateAsync();
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var version = await UpdateService.CheckForUpdateAsync();
+            if (version is not null)
+            {
+                _updateVersion = version;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch
+        {
+            // Geen netwerk of GitHub onbereikbaar — stilletjes negeren
+        }
+    }
+
+    private async Task ApplyUpdate()
+    {
+        if (_updateVersion is null) return;
+        _updating = true;
+        await InvokeAsync(StateHasChanged);
+        var progress = new Progress<int>(p =>
+        {
+            _updateProgress = p;
+            InvokeAsync(StateHasChanged);
+        });
+        try
+        {
+            await UpdateService.DownloadAndApplyUpdateAsync(_updateVersion, progress);
+        }
+        catch
+        {
+            _updating = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

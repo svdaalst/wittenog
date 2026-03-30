@@ -24,6 +24,8 @@ public class RecordingWorkflowService : IAsyncDisposable
     public string? PendingWavPath { get; private set; }
     public string? LastError { get; private set; }
 
+    private bool _isExternalFile;
+
     public event Action? StateChanged;
 
     public RecordingWorkflowService(
@@ -102,6 +104,45 @@ public class RecordingWorkflowService : IAsyncDisposable
         StateChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Skips recording and goes straight to <see cref="WorkflowState.WaitingForLanguage"/>
+    /// using an externally supplied WAV file. The file is never deleted by this service.
+    /// </summary>
+    public async Task StartFromFileAsync(string noteFilePath, string wavFilePath, CancellationToken ct = default)
+    {
+        if (State != WorkflowState.Idle)
+            throw new InvalidOperationException(
+                "Er loopt al een opname. Stop de huidige opname eerst.");
+
+        LastError = null;
+
+        if (_vault.VaultPath is not null)
+        {
+            var ts = _vaultSettings.GetTranscriptionSettings(_vault.VaultPath);
+            _transcription.ConfiguredModel = ts.Model;
+        }
+
+        if (!_transcription.IsModelReady)
+        {
+            State = WorkflowState.DownloadingModel;
+            DownloadProgress = 0;
+            StateChanged?.Invoke();
+
+            var progress = new Progress<double>(p =>
+            {
+                DownloadProgress = p;
+                StateChanged?.Invoke();
+            });
+            await _transcription.EnsureModelAsync(progress, ct);
+        }
+
+        PendingWavPath = wavFilePath;
+        RecordingForFilePath = noteFilePath;
+        _isExternalFile = true;
+        State = WorkflowState.WaitingForLanguage;
+        StateChanged?.Invoke();
+    }
+
     /// <summary>Transcribes the pending WAV with the chosen language and appends the result to the note.</summary>
     public async Task ConfirmTranscriptionAsync(string language, CancellationToken ct = default)
     {
@@ -132,6 +173,7 @@ public class RecordingWorkflowService : IAsyncDisposable
         finally
         {
             RecordingForFilePath = null;
+            _isExternalFile = false;
             State = WorkflowState.Idle;
             StateChanged?.Invoke();
         }
@@ -143,11 +185,12 @@ public class RecordingWorkflowService : IAsyncDisposable
         if (State != WorkflowState.WaitingForLanguage)
             return Task.CompletedTask;
 
-        if (PendingWavPath is not null)
+        if (PendingWavPath is not null && !_isExternalFile)
             try { File.Delete(PendingWavPath); } catch { /* non-fatal */ }
 
         PendingWavPath = null;
         RecordingForFilePath = null;
+        _isExternalFile = false;
         State = WorkflowState.Idle;
         StateChanged?.Invoke();
         return Task.CompletedTask;

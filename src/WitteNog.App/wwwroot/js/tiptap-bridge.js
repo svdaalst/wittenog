@@ -174,9 +174,13 @@ window.TipTapBridge = {
             // Fallback: plain textarea if TipTap not loaded
             const ta = document.createElement('textarea');
             ta.value = initialContent;
-            ta.style.cssText = 'width:100%;min-height:120px;background:transparent;border:none;outline:none;resize:vertical;font-family:inherit;font-size:inherit;color:inherit;';
+            ta.style.cssText = 'width:100%;background:transparent;border:none;outline:none;resize:none;overflow:hidden;font-family:inherit;font-size:inherit;color:inherit;display:block;';
             ta.dataset.fallback = 'true';
             el.appendChild(ta);
+            // Auto-resize: toon volledige inhoud zonder interne scroll
+            const autoResize = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+            autoResize();
+            ta.addEventListener('input', autoResize);
             this.editors[elementId] = { isFallback: true, el: ta };
             return;
         }

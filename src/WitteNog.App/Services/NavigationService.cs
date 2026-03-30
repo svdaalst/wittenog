@@ -51,4 +51,11 @@ public class NavigationService : INavigationService
             TabsChanged?.Invoke();
         }
     }
+
+    public void ClearTabs()
+    {
+        _tabs.Clear();
+        var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
+        OpenNewTab(TabType.DailyPage, today);
+    }
 }

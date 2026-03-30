@@ -2,6 +2,7 @@
 @inject INavigationService NavService
 @inject VaultWatcherService Watcher
 @inject ILinkMetadataService MetadataService
+@inject VaultContextService VaultContext
 @implements IDisposable
 @using MediatR
 @using System.Text.RegularExpressions
@@ -47,6 +48,28 @@
             </div>
         }
     </div>
+    @if (VaultContext.VaultPaths.Count > 1)
+    {
+        <div class="vault-switcher">
+            <button class="vault-switcher-btn" @onclick="ToggleVaultDropdown">
+                <span class="vault-switcher-name">@CurrentVaultName</span>
+                <span class="vault-switcher-arrow">@(_vaultDropdownOpen ? "▴" : "▾")</span>
+            </button>
+            @if (_vaultDropdownOpen)
+            {
+                <div class="vault-dropdown">
+                    @foreach (var path in VaultContext.VaultPaths)
+                    {
+                        var p = path;
+                        <button class="vault-dropdown-item @(p == VaultContext.VaultPath ? "active" : "")"
+                                @onclick="() => SwitchVault(p)">
+                            @VaultDisplayName(p)
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -62,6 +85,16 @@
     private string _search = string.Empty;
     private bool _archiveSectionExpanded;
     private readonly HashSet<string> _expanded = new();
+    private bool _vaultDropdownOpen;
+
+    private string CurrentVaultName => VaultDisplayName(VaultPath);
+
+    private static string VaultDisplayName(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return string.Empty;
+        var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return string.IsNullOrEmpty(name) ? path : name;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -71,6 +104,8 @@
         Watcher.MetadataChanged += OnExternalMetadataChange;
         MetadataService.MetadataChanged -= OnMetadataChanged;
         MetadataService.MetadataChanged += OnMetadataChanged;
+        VaultContext.VaultListChanged -= OnVaultListChanged;
+        VaultContext.VaultListChanged += OnVaultListChanged;
         await RefreshAsync();
     }
 
@@ -124,8 +159,18 @@
 
     private void ToggleArchiveSection() => _archiveSectionExpanded = !_archiveSectionExpanded;
 
+    private void ToggleVaultDropdown() => _vaultDropdownOpen = !_vaultDropdownOpen;
+
+    private void SwitchVault(string path)
+    {
+        _vaultDropdownOpen = false;
+        if (path == VaultContext.VaultPath) return;
+        VaultContext.SetVaultPath(path);
+    }
+
     private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
     private void OnMetadataChanged() => InvokeAsync(RefreshAsync);
+    private void OnVaultListChanged() => InvokeAsync(StateHasChanged);
 
     private void OnExternalMetadataChange()
     {
@@ -138,5 +183,6 @@
         Watcher.NoteChanged -= OnExternalChange;
         Watcher.MetadataChanged -= OnExternalMetadataChange;
         MetadataService.MetadataChanged -= OnMetadataChanged;
+        VaultContext.VaultListChanged -= OnVaultListChanged;
     }
 }

@@ -13,6 +13,22 @@ A markdown-based note-taking app built with .NET MAUI and Blazor Hybrid. Notes a
 - **Link tree sidebar** – Browse all WikiLinks in the vault as a tree
 - **Per-vault settings** – Model selection, link colors, and metadata stored in `<vault>/.metadata/`
 
+## Installeren
+
+### Downloaden (aanbevolen)
+
+1. Ga naar de [Releases pagina](https://github.com/svdaalst/wittenog/releases) en download de nieuwste `WitteNog-v*.zip`
+2. Pak het ZIP-bestand uit naar een map naar keuze (bijv. `C:\Apps\WitteNog\`)
+3. Start `WitteNog.App.exe`
+
+Bij de eerste keer opstarten vraagt de app je een vault-map te kiezen. Je notities worden daar opgeslagen als gewone `.md` bestanden.
+
+**Vereisten:** Windows 10 (build 17763) of nieuwer. Geen installer nodig.
+
+### Automatische updates
+
+Zodra er een nieuwe versie beschikbaar is, verschijnt er een melding linksonder in de app. Klik op **Bijwerken** om de update automatisch te downloaden en te installeren — de app herstart in de nieuwe versie.
+
 ## Tech Stack
 
 | Layer | Libraries |
@@ -36,7 +52,19 @@ WitteNog.Infrastructure File storage, audio, Whisper transcription, vault watche
 WitteNog.App            MAUI + Blazor Hybrid UI, DI wiring
 ```
 
-## Getting Started
+## Releasing a new version
+
+Tag a commit with a version number — GitHub Actions builds and publishes the release automatically:
+
+```bash
+git tag v1.2.0
+git push origin main
+git push origin v1.2.0
+```
+
+The release ZIP appears on the [Releases page](https://github.com/svdaalst/wittenog/releases) within a few minutes.
+
+## Getting Started (development)
 
 **Prerequisites**
 
@@ -92,7 +120,4 @@ tests/
   WitteNog.Core.Tests/
   WitteNog.Application.Tests/
   WitteNog.Infrastructure.Tests/
-publish/                    Output directory for Windows builds
-icons/                      App icons
-docs/                       Design documents
 ```

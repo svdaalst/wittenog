@@ -15,6 +15,15 @@
         <h2>☑ Taken</h2>
     </div>
 
+    @if (_infoMessage != null)
+    {
+        <div class="archive-guard-toast" style="background:#1e4620" @onclick="() => _infoMessage = null">@_infoMessage</div>
+    }
+    @if (_errorMessage != null)
+    {
+        <div class="archive-guard-toast" @onclick="() => _errorMessage = null">@_errorMessage</div>
+    }
+
     @* ── Filters ──────────────────────────────────────────────────────── *@
     <div class="task-filters">
         <div class="task-filter-group">
@@ -96,11 +105,15 @@
     private IReadOnlyList<TaskItem>? _tasks;
     private string _filterProject = string.Empty;
     private int _filterPriority;
+    private string? _errorMessage;
+    private string? _infoMessage;
 
     protected override async Task OnParametersSetAsync()
     {
         Watcher.NoteChanged -= OnExternalChange;
         Watcher.NoteChanged += OnExternalChange;
+        Watcher.MetadataChanged -= OnMetadataChange;
+        Watcher.MetadataChanged += OnMetadataChange;
         await RefreshAsync();
     }
 
@@ -138,7 +151,19 @@
     private async Task CompleteTask(TaskItem task)
     {
         if (string.IsNullOrEmpty(VaultPath)) return;
-        await Mediator.Send(new CompleteTaskCommand(VaultPath, task.Id));
+        _errorMessage = null;
+        _infoMessage = null;
+        try
+        {
+            await Mediator.Send(new CompleteTaskCommand(VaultPath, task.Id));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Taak kon niet worden voltooid: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        _infoMessage = $"✓ Afgevinkt in: {task.FilePath}";
         await RefreshAsync();
     }
 
@@ -156,9 +181,11 @@
         task.Deadline.HasValue && task.Deadline.Value < DateOnly.FromDateTime(DateTime.Today);
 
     private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
+    private void OnMetadataChange() => InvokeAsync(RefreshAsync);
 
     public void Dispose()
     {
         Watcher.NoteChanged -= OnExternalChange;
+        Watcher.MetadataChanged -= OnMetadataChange;
     }
 }

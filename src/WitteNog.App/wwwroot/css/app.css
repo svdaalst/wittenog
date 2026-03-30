@@ -1210,6 +1210,37 @@ html, body {
     box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
 
+.update-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    background: rgba(10,20,30,0.95);
+    border: 1px solid rgba(100,180,255,0.4);
+    color: #7ecfff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    z-index: 10000;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.update-toast button {
+    background: rgba(100,180,255,0.15);
+    border: 1px solid rgba(100,180,255,0.4);
+    color: #7ecfff;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+.update-toast button:hover {
+    background: rgba(100,180,255,0.25);
+}
+
 /* ============================================================
    Hamburger button (hidden on desktop, shown on mobile)
    ============================================================ */

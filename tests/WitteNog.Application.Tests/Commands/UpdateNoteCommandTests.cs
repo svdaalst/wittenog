@@ -100,7 +100,7 @@ public class UpdateNoteCommandTests
     }
 
     [Fact]
-    public async Task Handle_WithTabQuery_NewFileContainsTabLink()
+    public async Task Handle_WithTabQuery_NewFileHasTabQueryPrefix()
     {
         var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
         var mediator = BuildMediator(repo);
@@ -110,8 +110,25 @@ public class UpdateNoteCommandTests
             "# Eerste\n\nBody.\n\n# Tweede\n\nMeer.",
             TabQuery: "2026-03-19"));
 
-        var newNote = repo.All.First(n => n.Id == "tweede");
-        Assert.Contains("[[2026-03-19]]", newNote.Content);
+        var newNote = repo.All.First(n => n.Id == "2026-03-19-tweede");
+        Assert.StartsWith("2026-03-19-", newNote.Id);
+        Assert.Equal("[[2026-03-19]]-Tweede", newNote.Title);
+        Assert.StartsWith("# [[2026-03-19]]-Tweede", newNote.Content);
+    }
+
+    [Fact]
+    public async Task Handle_WithTabQuery_NewFileHasWikiLinkInTitle()
+    {
+        var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
+        var mediator = BuildMediator(repo);
+
+        await mediator.Send(new UpdateNoteCommand(
+            NoteFile("combined.md"),
+            "# Eerste\n\nBody.\n\n# Tweede\n\nMeer.",
+            TabQuery: "2026-03-19"));
+
+        var newNote = repo.All.First(n => n.Id == "2026-03-19-tweede");
+        Assert.StartsWith("# [[2026-03-19]]-Tweede", newNote.Content);
         Assert.Contains("2026-03-19", newNote.WikiLinks);
     }
 

@@ -37,21 +37,23 @@ public class UpdateNoteCommandHandler : IRequestHandler<UpdateNoteCommand, Atomi
 
         var firstSlug = Path.GetFileNameWithoutExtension(request.FilePath);
         var vaultDir = Path.GetDirectoryName(request.FilePath)!;
-        var backLink = !string.IsNullOrEmpty(request.TabQuery)
-            ? $"\n\n[[{request.TabQuery}]]"
-            : string.Empty;
 
         foreach (var (sectionTitle, sectionContent) in sections.Skip(1))
         {
-            var newSlug = _parser.GenerateSlug(sectionTitle);
+            var newSlug = !string.IsNullOrEmpty(request.TabQuery)
+                ? $"{request.TabQuery}-{_parser.GenerateSlug(sectionTitle)}"
+                : _parser.GenerateSlug(sectionTitle);
             var newPath = Path.Combine(vaultDir, $"{newSlug}.md");
 
             if (await _storage.ExistsAsync(newPath, ct))
                 continue;
 
-            var newContent = sectionContent + backLink;
+            var newContent = !string.IsNullOrEmpty(request.TabQuery)
+                ? ReplaceFirstHeading(sectionContent, request.TabQuery, sectionTitle)
+                : sectionContent;
             var newLinks = _linkParser.ExtractLinks(newContent);
-            var newNote = new AtomicNote(newSlug, newPath, sectionTitle, newContent, newLinks, DateTimeOffset.UtcNow);
+            var newTitle = _parser.ExtractTitle(newContent);
+            var newNote = new AtomicNote(newSlug, newPath, newTitle, newContent, newLinks, DateTimeOffset.UtcNow);
             await _storage.WriteAsync(newNote, ct);
         }
 
@@ -61,5 +63,14 @@ public class UpdateNoteCommandHandler : IRequestHandler<UpdateNoteCommand, Atomi
         var firstNote = new AtomicNote(firstSlug, request.FilePath, firstTitle, firstContent, firstLinks, DateTimeOffset.UtcNow);
         await _storage.WriteAsync(firstNote, ct);
         return firstNote;
+    }
+
+    private static string ReplaceFirstHeading(string content, string tabQuery, string sectionSlug)
+    {
+        var newline = content.IndexOf('\n');
+        var newHeading = $"# [[{tabQuery}]]-{sectionSlug}";
+        return newline >= 0
+            ? $"{newHeading}{content[newline..]}"
+            : newHeading;
     }
 }

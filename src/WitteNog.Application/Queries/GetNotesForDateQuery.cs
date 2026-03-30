@@ -18,6 +18,9 @@ public class GetNotesForDateQueryHandler
         GetNotesForDateQuery request, CancellationToken ct)
     {
         var notes = await _repo.FindByWikiLinkAsync(request.VaultPath, request.Date, ct);
-        return notes.OrderByDescending(n => n.LastModified).ToList();
+        return notes
+            .OrderBy(n => n.Content.Trim() == $"[[{request.Date}]]" ? 0 : 1)
+            .ThenByDescending(n => n.Id)
+            .ToList();
     }
 }

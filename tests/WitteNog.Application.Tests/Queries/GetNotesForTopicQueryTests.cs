@@ -22,6 +22,28 @@ public class GetNotesForTopicQueryTests
     private static AtomicNote MakeNote(string id, params string[] links) =>
         new(id, $"/vault/{id}.md", id, $"# {id}", links, DateTimeOffset.UtcNow);
 
+    private static AtomicNote MakeNoteWithContent(string id, string content, params string[] links) =>
+        new(id, $"/vault/{id}.md", id, content, links, DateTimeOffset.UtcNow);
+
+    [Fact]
+    public async Task Handle_MainNoteFirst_ThenFilenameDescending()
+    {
+        var repo = new FakeNoteRepository(new[]
+        {
+            MakeNoteWithContent("note-c", "# note-c", "ProjectX"),
+            MakeNoteWithContent("ProjectX", "[[ProjectX]]", "ProjectX"),
+            MakeNoteWithContent("note-a", "# note-a", "ProjectX"),
+        });
+        var mediator = BuildMediator(repo);
+
+        var result = await mediator.Send(new GetNotesForTopicQuery("/vault", "ProjectX"));
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal("ProjectX", result[0].Id);
+        Assert.Equal("note-c", result[1].Id);
+        Assert.Equal("note-a", result[2].Id);
+    }
+
     [Fact]
     public async Task Handle_ReturnsNotesWithMatchingTopicLink()
     {

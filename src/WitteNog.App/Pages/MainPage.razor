@@ -142,6 +142,7 @@ else
 
     private void OnVaultPathChanged()
     {
+        NavService.ClearTabs();
         EnsureVaultDirectories();
         Watcher.StartWatching(VaultPath);
         InvokeAsync(StateHasChanged);

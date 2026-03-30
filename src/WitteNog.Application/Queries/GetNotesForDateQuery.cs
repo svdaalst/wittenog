@@ -14,7 +14,10 @@ public class GetNotesForDateQueryHandler
 
     public GetNotesForDateQueryHandler(INoteRepository repo) => _repo = repo;
 
-    public Task<IReadOnlyList<AtomicNote>> Handle(
+    public async Task<IReadOnlyList<AtomicNote>> Handle(
         GetNotesForDateQuery request, CancellationToken ct)
-        => _repo.FindByWikiLinkAsync(request.VaultPath, request.Date, ct);
+    {
+        var notes = await _repo.FindByWikiLinkAsync(request.VaultPath, request.Date, ct);
+        return notes.OrderByDescending(n => n.LastModified).ToList();
+    }
 }

@@ -14,7 +14,10 @@ public class GetNotesForTopicQueryHandler
 
     public GetNotesForTopicQueryHandler(INoteRepository repo) => _repo = repo;
 
-    public Task<IReadOnlyList<AtomicNote>> Handle(
+    public async Task<IReadOnlyList<AtomicNote>> Handle(
         GetNotesForTopicQuery request, CancellationToken ct)
-        => _repo.FindByWikiLinkAsync(request.VaultPath, request.Topic, ct);
+    {
+        var notes = await _repo.FindByWikiLinkAsync(request.VaultPath, request.Topic, ct);
+        return notes.OrderByDescending(n => n.LastModified).ToList();
+    }
 }

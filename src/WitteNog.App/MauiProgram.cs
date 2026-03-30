@@ -10,7 +10,9 @@ using WitteNog.Infrastructure.Audio;
 using WitteNog.Infrastructure.Parsing;
 using WitteNog.Infrastructure.Settings;
 using WitteNog.Infrastructure.Storage;
+using WitteNog.Infrastructure.Services;
 using WitteNog.Infrastructure.Tasks;
+using System.Net.Http;
 
 namespace WitteNog.App;
 
@@ -65,6 +67,10 @@ public static class MauiProgram
         builder.Services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssembly(
                 typeof(WitteNog.Application.Queries.GetNotesForDateQueryHandler).Assembly));
+
+        // Update service
+        builder.Services.AddSingleton<IUpdateService>(_ =>
+            new GitHubUpdateService(new HttpClient(), AppInfo.VersionString));
 
         // App services
         builder.Services.AddSingleton<INavigationService, NavigationService>();

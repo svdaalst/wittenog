@@ -71,6 +71,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<VaultWatcherService>();
         builder.Services.AddSingleton<VaultContextService>();
         builder.Services.AddSingleton<FolderPickerService>();
+        builder.Services.AddSingleton<EditModeCoordinatorService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

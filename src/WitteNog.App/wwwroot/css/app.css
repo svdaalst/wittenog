@@ -604,7 +604,7 @@ html, body {
    TipTap editor
    ============================================================ */
 .tiptap-editor {
-    min-height: 120px;
+    min-height: 2em;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;

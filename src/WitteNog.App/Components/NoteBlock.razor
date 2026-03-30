@@ -1,6 +1,7 @@
 @inject IMediator Mediator
 @inject INavigationService NavService
 @inject IJSRuntime JS
+@inject WitteNog.App.Services.EditModeCoordinatorService EditModeCoordinator
 @implements IDisposable
 @using MediatR
 @using WitteNog.App.Helpers
@@ -111,6 +112,17 @@
             case "edit":
                 if (!_editing)
                 {
+                    await EditModeCoordinator.TryEnterEditModeAsync(Note.Id, async () =>
+                    {
+                        if (_editor != null)
+                        {
+                            var content = await _editor.GetContentAsync();
+                            await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
+                        }
+                        _editing = false;
+                        await InvokeAsync(StateHasChanged);
+                        await OnSaved.InvokeAsync();
+                    });
                     _editing = true;
                     await InvokeAsync(StateHasChanged);
                 }
@@ -120,6 +132,7 @@
                 break;
             case "cancel":
                 _editing = false;
+                EditModeCoordinator.ExitEditMode(Note.Id);
                 await InvokeAsync(StateHasChanged);
                 break;
             case "confirm-delete":
@@ -150,6 +163,7 @@
         var content = await _editor.GetContentAsync();
         await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
         _editing = false;
+        EditModeCoordinator.ExitEditMode(Note.Id);
         await OnSaved.InvokeAsync();
     }
 
@@ -160,5 +174,9 @@
         await OnSaved.InvokeAsync();
     }
 
-    public void Dispose() => _dotNetRef?.Dispose();
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        EditModeCoordinator.ExitEditMode(Note.Id);
+    }
 }

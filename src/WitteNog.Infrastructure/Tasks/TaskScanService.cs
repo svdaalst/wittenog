@@ -46,12 +46,25 @@ public class TaskScanService
     {
         if (!_fs.Directory.Exists(vaultPath)) return;
 
-        var files = _fs.Directory.GetFiles(vaultPath, "*.md", SearchOption.AllDirectories);
-        foreach (var file in files)
+        var allFiles = _fs.Directory.GetFiles(vaultPath, "*.md", SearchOption.AllDirectories);
+        var scannedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in allFiles)
         {
             if (!IsInArchive(file))
+            {
+                scannedPaths.Add(file);
                 ScanFile(vaultPath, file);
+            }
         }
+
+        // Evict cached tasks whose source file no longer exists or has been archived
+        var stalePaths = _cache.GetTasks(vaultPath)
+            .Select(t => t.FilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(p => !scannedPaths.Contains(p))
+            .ToList();
+        foreach (var stalePath in stalePaths)
+            _cache.ClearTasksForFile(vaultPath, stalePath);
     }
 
     private void ScanFile(string vaultPath, string filePath)

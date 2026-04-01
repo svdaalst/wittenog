@@ -21,11 +21,30 @@ public static class MarkdownRenderer
     /// <summary>
     /// Renders markdown to HTML. WikiLinks become clickable spans with data-wikilink attributes.
     /// Audio file links become spans with data-audiolink attributes (opened via the OS).
+    /// When filePath is provided, unchecked task checkboxes become clickable buttons.
     /// </summary>
-    public static string Render(string markdown)
+    public static string Render(string markdown, string? filePath = null)
     {
+        // Replace unchecked task checkboxes with clickable buttons BEFORE Markdig processes the text.
+        // Line indices must match those used by TaskParser (which calls File.ReadAllLines).
+        string preprocessed = markdown;
+        if (filePath != null)
+        {
+            var encodedPath = System.Net.WebUtility.HtmlEncode(filePath);
+            var lines = markdown.Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var bare = lines[i].TrimEnd('\r');
+                var trimmed = bare.TrimStart();
+                if (trimmed.StartsWith("- [ ]") || trimmed.StartsWith("* [ ]"))
+                    lines[i] = lines[i].Replace("[ ]",
+                        $"<button class=\"inline-task-btn\" data-action=\"complete-inline\" data-taskid=\"{encodedPath}:{i}\">☐</button>");
+            }
+            preprocessed = string.Join('\n', lines);
+        }
+
         // Replace [[link]] with a clickable span BEFORE Markdig processes the text
-        var withLinks = WikiLinkRegex.Replace(markdown, m =>
+        var withLinks = WikiLinkRegex.Replace(preprocessed, m =>
         {
             var link = m.Groups[1].Value;
             var encoded = System.Net.WebUtility.HtmlEncode(link);

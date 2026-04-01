@@ -22,7 +22,7 @@
     else
     {
         <div class="note-content" data-action="edit">
-            @((MarkupString)MarkdownRenderer.Render(Note.Content))
+            @((MarkupString)MarkdownRenderer.Render(Note.Content, Note.FilePath))
         </div>
         <div class="note-actions-bar">
             <RecordingPanel @ref="_recordingPanel" FilePath="@Note.FilePath" />
@@ -105,10 +105,14 @@
     }
 
     [JSInvokable]
-    public async Task HandleNoteAction(string action)
+    public async Task HandleNoteAction(string action, string taskId = "")
     {
         switch (action)
         {
+            case "complete-inline":
+                await Mediator.Send(new CompleteTaskCommand(VaultPath, taskId));
+                await OnSaved.InvokeAsync();
+                return;
             case "edit":
                 if (!_editing)
                 {

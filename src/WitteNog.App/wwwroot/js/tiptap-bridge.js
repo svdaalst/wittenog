@@ -14,7 +14,7 @@ window.OnboardingDelegate = {
     }
 };
 
-// Task dashboard delegation — passes action and taskid
+// Task dashboard delegation — passes action and taskid or filepath
 window.TaskDelegate = {
     attach(element, dotNetRef) {
         element.addEventListener('click', (e) => {
@@ -22,9 +22,24 @@ window.TaskDelegate = {
             if (target) {
                 dotNetRef.invokeMethodAsync('HandleAction',
                     target.dataset.action,
-                    target.dataset.taskid || '');
+                    target.dataset.filepath || target.dataset.taskid || '');
             }
         });
+    }
+};
+
+// Scroll to a note anchor by note ID, retrying until the DOM is ready
+window.scrollToNote = function(noteId, attempt) {
+    attempt = attempt || 0;
+    const el = document.getElementById('note-' + noteId);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('note-highlight');
+        setTimeout(() => el.classList.remove('note-highlight'), 1500);
+        return;
+    }
+    if (attempt < 20) {
+        setTimeout(() => window.scrollToNote(noteId, attempt + 1), 100);
     }
 };
 
@@ -64,7 +79,9 @@ window.NoteBlockDelegate = {
             const actionTarget = e.target.closest('[data-action]');
             if (actionTarget) {
                 e.stopPropagation();
-                dotNetRef.invokeMethodAsync('HandleNoteAction', actionTarget.dataset.action);
+                dotNetRef.invokeMethodAsync('HandleNoteAction',
+                    actionTarget.dataset.action,
+                    actionTarget.dataset.taskid || '');
             }
         });
         element.addEventListener('keydown', (e) => {

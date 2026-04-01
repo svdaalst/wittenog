@@ -5,6 +5,7 @@ using Microsoft.Win32.SafeHandles;
 using WitteNog.Core.Events;
 using WitteNog.Core.Interfaces;
 using WitteNog.Core.Models;
+using WitteNog.Infrastructure.Parsing;
 using WitteNog.Infrastructure.Tasks;
 
 namespace WitteNog.Infrastructure.Tests.Tasks;
@@ -47,7 +48,7 @@ public class TaskScanServiceTests
     }
 
     private static TaskScanService BuildSut(MockFileSystem fs, ITaskCache cache) =>
-        new(fs, cache);
+        new(fs, cache, new WikiLinkParser());
 
     // ── StartScanning ──────────────────────────────────────────────────────────
 
@@ -203,7 +204,7 @@ public class TaskScanServiceTests
         // Simuleer een vergrendeld bestand: IOException op ReadAllLines
         var lockedPath = innerFs.Path.GetFullPath(filePath);
         var lockedFs = new LockedFileSystem(innerFs, lockedPath);
-        var sutLocked = new TaskScanService(lockedFs, cache);
+        var sutLocked = new TaskScanService(lockedFs, cache, new WikiLinkParser());
         sutLocked.StartScanning(VaultPath); // registreert vault path; IOException wordt intern gevangen
 
         var ex = Record.Exception(() =>
@@ -211,6 +212,68 @@ public class TaskScanServiceTests
 
         Assert.Null(ex);                          // mag niet crashen
         Assert.Single(cache.GetTasks(VaultPath)); // cache ongewijzigd
+    }
+
+    // ── SourceFirstWikiLink ───────────────────────────────────────────────────
+
+    [Fact]
+    public void StartScanning_FileWithWikiLink_SetsSourceFirstWikiLink()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile($"{VaultPath}/2026-04-01.md", new MockFileData(
+            "# Daily\n[[ProjectA]] Some content\n- [ ] Do a thing"));
+
+        var cache = new MemoryTaskCache();
+        BuildSut(fs, cache).StartScanning(VaultPath);
+
+        var tasks = cache.GetTasks(VaultPath);
+        Assert.Single(tasks);
+        Assert.Equal("ProjectA", tasks[0].SourceFirstWikiLink);
+    }
+
+    [Fact]
+    public void StartScanning_FileWithNoWikiLinks_SourceFirstWikiLinkIsNull()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile($"{VaultPath}/note.md", new MockFileData(
+            "# Note\n- [ ] Task without links"));
+
+        var cache = new MemoryTaskCache();
+        BuildSut(fs, cache).StartScanning(VaultPath);
+
+        var tasks = cache.GetTasks(VaultPath);
+        Assert.Single(tasks);
+        Assert.Null(tasks[0].SourceFirstWikiLink);
+    }
+
+    [Fact]
+    public void StartScanning_FileWithMultipleWikiLinks_UsesFirst()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile($"{VaultPath}/note.md", new MockFileData(
+            "# Note\n[[FirstLink]] content\n[[SecondLink]] more\n- [ ] A task"));
+
+        var cache = new MemoryTaskCache();
+        BuildSut(fs, cache).StartScanning(VaultPath);
+
+        var tasks = cache.GetTasks(VaultPath);
+        Assert.Single(tasks);
+        Assert.Equal("FirstLink", tasks[0].SourceFirstWikiLink);
+    }
+
+    [Fact]
+    public void StartScanning_MultipleTasksInFile_AllGetSameSourceFirstWikiLink()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile($"{VaultPath}/note.md", new MockFileData(
+            "[[ProjectA]]\n- [ ] Task one\n- [ ] Task two"));
+
+        var cache = new MemoryTaskCache();
+        BuildSut(fs, cache).StartScanning(VaultPath);
+
+        var tasks = cache.GetTasks(VaultPath);
+        Assert.Equal(2, tasks.Count);
+        Assert.All(tasks, t => Assert.Equal("ProjectA", t.SourceFirstWikiLink));
     }
 
     // ── Test doubles ──────────────────────────────────────────────────────────

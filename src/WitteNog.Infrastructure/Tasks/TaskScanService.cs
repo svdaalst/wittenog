@@ -3,18 +3,21 @@ namespace WitteNog.Infrastructure.Tasks;
 using System.IO.Abstractions;
 using WitteNog.Core.Events;
 using WitteNog.Core.Interfaces;
+using WitteNog.Core.Models;
 using WitteNog.Core.Parsing;
 
 public class TaskScanService
 {
     private readonly IFileSystem _fs;
     private readonly ITaskCache _cache;
+    private readonly IWikiLinkParser _wikiLinkParser;
     private string? _currentVaultPath;
 
-    public TaskScanService(IFileSystem fs, ITaskCache cache)
+    public TaskScanService(IFileSystem fs, ITaskCache cache, IWikiLinkParser wikiLinkParser)
     {
         _fs = fs;
         _cache = cache;
+        _wikiLinkParser = wikiLinkParser;
     }
 
     public void StartScanning(string vaultPath)
@@ -89,7 +92,19 @@ public class TaskScanService
             return;
         }
 
-        var tasks = TaskParser.ParseAllTasks(lines, filePath, lastModified);
+        IReadOnlyList<TaskItem> tasks = TaskParser.ParseAllTasks(lines, filePath, lastModified);
+
+        string? firstWikiLink = null;
+        foreach (var line in lines)
+        {
+            var links = _wikiLinkParser.ExtractLinks(line);
+            if (links.Count > 0) { firstWikiLink = links[0]; break; }
+        }
+
+        if (firstWikiLink != null)
+            tasks = tasks.Select(t => t with { SourceFirstWikiLink = firstWikiLink })
+                         .ToList().AsReadOnly();
+
         _cache.SetTasksForFile(vaultPath, filePath, tasks);
     }
 

@@ -10,4 +10,7 @@ public record TaskItem(
     DateOnly? Deadline,
     int? Priority,
     DateTimeOffset LastModified
-);
+)
+{
+    public string? SourceFirstWikiLink { get; init; }
+}

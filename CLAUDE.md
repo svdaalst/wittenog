@@ -64,7 +64,7 @@ using IoFileSystem = System.IO.Abstractions.FileSystem;
 using IIoFileSystem = System.IO.Abstractions.IFileSystem;
 ```
 
-**DOM event delegation in Blazor**: Blazor's `@onclick` passes serialized `MouseEventArgs` — `event.target` is undefined in JS. All interactive elements (wiki links, note actions, tab clicks) use native DOM delegation attached via `ElementReference`. Every delegate follows this pattern:
+**DOM event delegation in Blazor**: `@onclick` and `@onchange` do NOT work in this MAUI BlazorWebView — events are silently swallowed. All interactive elements (wiki links, note actions, tab clicks, task completion) must use native DOM delegation attached via `ElementReference`. Never use `@onclick` or `@onchange` on buttons, checkboxes, or any other element; always use `data-action` + a JS delegate instead. Every delegate follows this pattern:
 ```csharp
 // C# — attach on first render
 await JS.InvokeVoidAsync("NoteBlockDelegate.attach", _container, _dotNetRef);

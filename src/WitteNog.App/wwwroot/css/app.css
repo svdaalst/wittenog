@@ -1154,13 +1154,62 @@ html, body {
     max-width: 380px;
 }
 
-.task-project .wiki-chip {
+.task-source {
+    white-space: nowrap;
+}
+
+.source-link {
+    background: none;
+    border: none;
+    color: var(--accent, #e94560);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    opacity: 0.85;
+    display: block;
+}
+.source-link:hover { opacity: 1; }
+
+.task-source .wiki-chip {
     background: rgba(233,69,96,0.15);
     border: 1px solid rgba(233,69,96,0.3);
     color: var(--accent, #e94560);
     border-radius: 3px;
     padding: 2px 6px;
     font-size: 0.8rem;
+    margin-top: 4px;
+    display: inline-block;
+}
+
+@keyframes note-highlight-fade {
+    from { background: rgba(233, 69, 96, 0.18); }
+    to   { background: transparent; }
+}
+.note-highlight {
+    animation: note-highlight-fade 1.5s ease-out forwards;
+    border-radius: 4px;
+}
+
+/* Inline task completion button rendered inside note read view */
+.inline-task-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 3px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.95em;
+    line-height: 1;
+    margin-right: 4px;
+    padding: 0 3px;
+    vertical-align: middle;
+    opacity: 0.7;
+}
+.inline-task-btn:hover {
+    border-color: var(--accent, #e94560);
+    color: var(--accent, #e94560);
+    opacity: 1;
 }
 
 .task-priority { font-weight: bold; }
@@ -1184,6 +1233,18 @@ html, body {
 }
 
 .tasks-btn:hover { opacity: 1; }
+
+.complete-task-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.6;
+}
+.complete-task-btn:hover { opacity: 1; background: rgba(255,255,255,0.08); }
 
 .task-archive-warning {
     margin-top: 12px;

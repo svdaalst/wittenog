@@ -53,7 +53,9 @@ else
     {
         @foreach (var note in _notes)
         {
-            <NoteBlock Note="@note" VaultPath="@VaultPath" TabQuery="@Tab.Query" OnSaved="RefreshAsync" />
+            <div id="note-@note.Id">
+                <NoteBlock Note="@note" VaultPath="@VaultPath" TabQuery="@Tab.Query" OnSaved="RefreshAsync" />
+            </div>
         }
     }
 </div>

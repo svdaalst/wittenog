@@ -1,27 +1,34 @@
 @using MediatR
+@using WitteNog.App.Models
 @using WitteNog.App.Services
 @using WitteNog.Application.Commands
 @using WitteNog.Application.Queries
 @using WitteNog.Core.Events
 @using WitteNog.Core.Interfaces
 @using WitteNog.Core.Models
+@using Microsoft.JSInterop
 @inject IMediator Mediator
 @inject VaultContextService VaultContext
 @inject VaultWatcherService Watcher
+@inject INavigationService NavService
+@inject IJSRuntime JS
 @implements IDisposable
 
-<div class="task-dashboard-page">
+<div class="task-dashboard-page" @ref="_container">
     <div class="canvas-header">
         <h2>☑ Taken</h2>
+        <div class="canvas-header-actions">
+            <button class="collapse-all-btn" data-action="rescan" title="Bestanden opnieuw scannen">↺ Vernieuwen</button>
+        </div>
     </div>
 
     @if (_infoMessage != null)
     {
-        <div class="archive-guard-toast" style="background:#1e4620" @onclick="() => _infoMessage = null">@_infoMessage</div>
+        <div class="archive-guard-toast" style="background:#1e4620" data-action="dismiss-info">@_infoMessage</div>
     }
     @if (_errorMessage != null)
     {
-        <div class="archive-guard-toast" @onclick="() => _errorMessage = null">@_errorMessage</div>
+        <div class="archive-guard-toast" data-action="dismiss-error">@_errorMessage</div>
     }
 
     @* ── Filters ──────────────────────────────────────────────────────── *@
@@ -65,7 +72,7 @@
                 <tr>
                     <th></th>
                     <th>Omschrijving</th>
-                    <th>Project</th>
+                    <th>Bron</th>
                     <th>Prioriteit</th>
                     <th>Deadline</th>
                 </tr>
@@ -75,12 +82,20 @@
                 {
                     <tr class="task-row">
                         <td>
-                            <input type="checkbox"
-                                   title="Markeer als voltooid"
-                                   @onclick="() => CompleteTask(task)" />
+                            <button class="complete-task-btn"
+                                    title="Markeer als voltooid"
+                                    data-action="complete"
+                                    data-taskid="@task.Id">☐</button>
                         </td>
                         <td class="task-desc">@task.Description</td>
-                        <td class="task-project">
+                        <td class="task-source">
+                            <button class="source-link"
+                                    data-action="open-source"
+                                    data-filepath="@task.FilePath"
+                                    data-wikilink="@task.SourceFirstWikiLink"
+                                    title="Open @(task.SourceFirstWikiLink ?? System.IO.Path.GetFileNameWithoutExtension(task.FilePath))">
+                                @(task.SourceFirstWikiLink ?? System.IO.Path.GetFileNameWithoutExtension(task.FilePath))
+                            </button>
                             @if (task.ProjectLink != null)
                             {
                                 <span class="wiki-chip">[[@task.ProjectLink]]</span>
@@ -107,6 +122,8 @@
     private int _filterPriority;
     private string? _errorMessage;
     private string? _infoMessage;
+    private ElementReference _container;
+    private DotNetObjectReference<TaskDashboard>? _dotNetRef;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -117,11 +134,50 @@
         await RefreshAsync();
     }
 
-    private async Task RefreshAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (string.IsNullOrEmpty(VaultPath)) return;
-        _tasks = await Mediator.Send(new GetAllTasksQuery(VaultPath));
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("TaskDelegate.attach", _container, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandleAction(string action, string data)
+    {
+        if (action == "complete")
+            await CompleteTaskById(data);
+        else if (action == "open-source")
+            await OpenSourceNote(data);
+        else if (action == "rescan")
+            await RescanAsync();
+        else if (action == "dismiss-info")
+        {
+            _infoMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action == "dismiss-error")
+        {
+            _errorMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RefreshAsync(string? vaultPath = null)
+    {
+        vaultPath ??= VaultContext.VaultPath ?? VaultPath;
+        if (string.IsNullOrEmpty(vaultPath)) return;
+        _tasks = await Mediator.Send(new GetAllTasksQuery(vaultPath));
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RescanAsync()
+    {
+        _tasks = null;
+        await InvokeAsync(StateHasChanged);
+        Watcher.TriggerManualRefresh();
+        await RefreshAsync();
     }
 
     private IEnumerable<TaskItem> FilteredTasks
@@ -148,14 +204,31 @@
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(p => p);
 
-    private async Task CompleteTask(TaskItem task)
+    private async Task OpenSourceNote(string filePath)
     {
-        if (string.IsNullOrEmpty(VaultPath)) return;
+        if (string.IsNullOrEmpty(filePath)) return;
+        var slug = System.IO.Path.GetFileNameWithoutExtension(filePath);
+        var type = System.Text.RegularExpressions.Regex.IsMatch(slug, @"^\d{4}-\d{2}-\d{2}$")
+            ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, slug);
+        await JS.InvokeVoidAsync("scrollToNote", slug);
+    }
+
+    private async Task CompleteTaskById(string taskId)
+    {
+        var vaultPath = VaultContext.VaultPath ?? VaultPath;
+        if (string.IsNullOrEmpty(vaultPath))
+        {
+            _errorMessage = "Kluis is niet geconfigureerd. Herstart de app en probeer het opnieuw.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
         _errorMessage = null;
         _infoMessage = null;
+        var taskDesc = _tasks?.FirstOrDefault(t => t.Id == taskId)?.Description ?? taskId;
         try
         {
-            await Mediator.Send(new CompleteTaskCommand(VaultPath, task.Id));
+            await Mediator.Send(new CompleteTaskCommand(vaultPath, taskId));
         }
         catch (Exception ex)
         {
@@ -163,8 +236,8 @@
             await InvokeAsync(StateHasChanged);
             return;
         }
-        _infoMessage = $"✓ Afgevinkt in: {task.FilePath}";
-        await RefreshAsync();
+        _infoMessage = $"✓ Afgevinkt: {taskDesc}";
+        await RefreshAsync(vaultPath);
     }
 
     private static string PriorityClass(int? priority) => priority switch
@@ -180,12 +253,13 @@
     private static bool IsOverdue(TaskItem task) =>
         task.Deadline.HasValue && task.Deadline.Value < DateOnly.FromDateTime(DateTime.Today);
 
-    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
-    private void OnMetadataChange() => InvokeAsync(RefreshAsync);
+    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(() => RefreshAsync());
+    private void OnMetadataChange() => InvokeAsync(() => RefreshAsync());
 
     public void Dispose()
     {
         Watcher.NoteChanged -= OnExternalChange;
         Watcher.MetadataChanged -= OnMetadataChange;
+        _dotNetRef?.Dispose();
     }
 }

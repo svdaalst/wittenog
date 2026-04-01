@@ -18,6 +18,9 @@ public class GetNotesForTopicQueryHandler
         GetNotesForTopicQuery request, CancellationToken ct)
     {
         var notes = await _repo.FindByWikiLinkAsync(request.VaultPath, request.Topic, ct);
-        return notes.OrderByDescending(n => n.LastModified).ToList();
+        return notes
+            .OrderBy(n => n.Content.Trim() == $"[[{request.Topic}]]" ? 0 : 1)
+            .ThenByDescending(n => n.Id)
+            .ToList();
     }
 }

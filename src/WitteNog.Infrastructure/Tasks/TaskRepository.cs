@@ -24,54 +24,57 @@ public class TaskRepository : ITaskRepository
 
     public async Task CompleteTaskAsync(string vaultPath, string taskId, CancellationToken ct = default)
     {
-        var allTasks = _cache.GetTasks(vaultPath);
-        var task = allTasks.FirstOrDefault(t => t.Id == taskId);
-        if (task == null)
-            throw new InvalidOperationException(
-                $"Taak niet gevonden. Gezocht op ID: '{taskId}' in vault '{vaultPath}'. " +
-                $"Cache bevat {allTasks.Count} taken: [{string.Join(", ", allTasks.Select(t => $"'{t.Id}'"))}]");
+        // Parse file path and line number directly from the task ID ("{filePath}:{lineNumber}").
+        // This allows completion to work even when the cache is empty or stale.
+        var lastColon = taskId.LastIndexOf(':');
+        if (lastColon < 0 || !int.TryParse(taskId[(lastColon + 1)..], out var lineNumber))
+            throw new InvalidOperationException($"Ongeldig taak-ID formaat: '{taskId}'");
 
-        if (!_fs.File.Exists(task.FilePath))
-            throw new InvalidOperationException($"Taakbestand niet gevonden: {task.FilePath}");
+        var filePath = taskId[..lastColon];
 
-        var lines = await Task.Run(() => _fs.File.ReadAllLines(task.FilePath), ct);
+        if (!_fs.File.Exists(filePath))
+            throw new InvalidOperationException($"Taakbestand niet gevonden: {filePath}");
+
+        var lines = await Task.Run(() => _fs.File.ReadAllLines(filePath), ct);
 
         int targetLine = -1;
 
-        // Snelpad: gecachte regelnummer klopt nog
-        if (task.LineNumber < lines.Length
-            && lines[task.LineNumber].Contains("- [ ]")
-            && string.Equals(lines[task.LineNumber], task.RawLine, StringComparison.Ordinal))
+        // Snelpad: regelnummer uit taak-ID klopt nog
+        if (lineNumber < lines.Length && lines[lineNumber].Contains("- [ ]"))
         {
-            targetLine = task.LineNumber;
+            targetLine = lineNumber;
         }
         else
         {
-            // Fallback: zoek de originele regel in het hele bestand
-            for (int i = 0; i < lines.Length; i++)
+            // Fallback: zoek via de gecachte ruwe tekstregel
+            var cachedTask = _cache.GetTasks(vaultPath).FirstOrDefault(t => t.Id == taskId);
+            if (cachedTask != null)
             {
-                if (string.Equals(lines[i], task.RawLine, StringComparison.Ordinal)
-                    && lines[i].Contains("- [ ]"))
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    targetLine = i;
-                    break;
+                    if (string.Equals(lines[i], cachedTask.RawLine, StringComparison.Ordinal)
+                        && lines[i].Contains("- [ ]"))
+                    {
+                        targetLine = i;
+                        break;
+                    }
                 }
             }
         }
 
         if (targetLine == -1)
             throw new InvalidOperationException(
-                $"Taak '{task.Description}' niet gevonden als open taak in {task.FilePath}. " +
+                $"Taak niet gevonden als open taak in {filePath}. " +
                 "Het bestand is mogelijk gewijzigd sinds de laatste scan.");
 
         lines[targetLine] = lines[targetLine].Replace("- [ ]", "- [x]");
-        await Task.Run(() => _fs.File.WriteAllLines(task.FilePath, lines), ct);
+        await Task.Run(() => _fs.File.WriteAllLines(filePath, lines), ct);
 
         // Verify the write actually persisted — catches path mismatches (OneDrive, shadow copy, etc.)
-        var written = await Task.Run(() => _fs.File.ReadAllLines(task.FilePath), ct);
+        var written = await Task.Run(() => _fs.File.ReadAllLines(filePath), ct);
         if (written.Length <= targetLine || !written[targetLine].Contains("- [x]"))
             throw new InvalidOperationException(
-                $"Schrijven naar '{task.FilePath}' leek te slagen maar verificatie mislukte. " +
+                $"Schrijven naar '{filePath}' leek te slagen maar verificatie mislukte. " +
                 $"Regel {targetLine} bevat nu: '{(written.Length > targetLine ? written[targetLine] : "(leeg)")}'.");
 
         _cache.RemoveTask(vaultPath, taskId);

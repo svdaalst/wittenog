@@ -13,6 +13,9 @@
 <div class="task-dashboard-page">
     <div class="canvas-header">
         <h2>☑ Taken</h2>
+        <div class="canvas-header-actions">
+            <button class="collapse-all-btn" @onclick="RescanAsync" title="Bestanden opnieuw scannen">↺ Vernieuwen</button>
+        </div>
     </div>
 
     @if (_infoMessage != null)
@@ -122,6 +125,14 @@
         if (string.IsNullOrEmpty(VaultPath)) return;
         _tasks = await Mediator.Send(new GetAllTasksQuery(VaultPath));
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RescanAsync()
+    {
+        _tasks = null;
+        await InvokeAsync(StateHasChanged);
+        Watcher.TriggerManualRefresh();
+        await RefreshAsync();
     }
 
     private IEnumerable<TaskItem> FilteredTasks

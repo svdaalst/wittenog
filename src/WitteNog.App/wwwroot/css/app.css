@@ -1154,13 +1154,42 @@ html, body {
     max-width: 380px;
 }
 
-.task-project .wiki-chip {
+.task-source {
+    white-space: nowrap;
+}
+
+.source-link {
+    background: none;
+    border: none;
+    color: var(--accent, #e94560);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    opacity: 0.85;
+    display: block;
+}
+.source-link:hover { opacity: 1; }
+
+.task-source .wiki-chip {
     background: rgba(233,69,96,0.15);
     border: 1px solid rgba(233,69,96,0.3);
     color: var(--accent, #e94560);
     border-radius: 3px;
     padding: 2px 6px;
     font-size: 0.8rem;
+    margin-top: 4px;
+    display: inline-block;
+}
+
+@keyframes note-highlight-fade {
+    from { background: rgba(233, 69, 96, 0.18); }
+    to   { background: transparent; }
+}
+.note-highlight {
+    animation: note-highlight-fade 1.5s ease-out forwards;
+    border-radius: 4px;
 }
 
 .task-priority { font-weight: bold; }

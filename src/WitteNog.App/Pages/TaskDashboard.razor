@@ -1,4 +1,5 @@
 @using MediatR
+@using WitteNog.App.Models
 @using WitteNog.App.Services
 @using WitteNog.Application.Commands
 @using WitteNog.Application.Queries
@@ -9,6 +10,7 @@
 @inject IMediator Mediator
 @inject VaultContextService VaultContext
 @inject VaultWatcherService Watcher
+@inject INavigationService NavService
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -70,7 +72,7 @@
                 <tr>
                     <th></th>
                     <th>Omschrijving</th>
-                    <th>Project</th>
+                    <th>Bron</th>
                     <th>Prioriteit</th>
                     <th>Deadline</th>
                 </tr>
@@ -86,7 +88,13 @@
                                     data-taskid="@task.Id">☐</button>
                         </td>
                         <td class="task-desc">@task.Description</td>
-                        <td class="task-project">
+                        <td class="task-source">
+                            <button class="source-link"
+                                    data-action="open-source"
+                                    data-filepath="@task.FilePath"
+                                    title="Open @System.IO.Path.GetFileNameWithoutExtension(task.FilePath)">
+                                @System.IO.Path.GetFileNameWithoutExtension(task.FilePath)
+                            </button>
                             @if (task.ProjectLink != null)
                             {
                                 <span class="wiki-chip">[[@task.ProjectLink]]</span>
@@ -135,10 +143,12 @@
     }
 
     [JSInvokable]
-    public async Task HandleAction(string action, string taskId)
+    public async Task HandleAction(string action, string data)
     {
         if (action == "complete")
-            await CompleteTaskById(taskId);
+            await CompleteTaskById(data);
+        else if (action == "open-source")
+            await OpenSourceNote(data);
         else if (action == "rescan")
             await RescanAsync();
         else if (action == "dismiss-info")
@@ -192,6 +202,16 @@
                 .Select(t => t.ProjectLink!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(p => p);
+
+    private async Task OpenSourceNote(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath)) return;
+        var slug = System.IO.Path.GetFileNameWithoutExtension(filePath);
+        var type = System.Text.RegularExpressions.Regex.IsMatch(slug, @"^\d{4}-\d{2}-\d{2}$")
+            ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, slug);
+        await JS.InvokeVoidAsync("scrollToNote", slug);
+    }
 
     private async Task CompleteTaskById(string taskId)
     {

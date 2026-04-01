@@ -92,8 +92,9 @@
                             <button class="source-link"
                                     data-action="open-source"
                                     data-filepath="@task.FilePath"
-                                    title="Open @System.IO.Path.GetFileNameWithoutExtension(task.FilePath)">
-                                @System.IO.Path.GetFileNameWithoutExtension(task.FilePath)
+                                    data-wikilink="@task.SourceFirstWikiLink"
+                                    title="Open @(task.SourceFirstWikiLink ?? System.IO.Path.GetFileNameWithoutExtension(task.FilePath))">
+                                @(task.SourceFirstWikiLink ?? System.IO.Path.GetFileNameWithoutExtension(task.FilePath))
                             </button>
                             @if (task.ProjectLink != null)
                             {

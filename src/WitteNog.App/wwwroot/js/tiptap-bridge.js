@@ -22,7 +22,7 @@ window.TaskDelegate = {
             if (target) {
                 dotNetRef.invokeMethodAsync('HandleAction',
                     target.dataset.action,
-                    target.dataset.filepath || target.dataset.taskid || '');
+                    target.dataset.wikilink || target.dataset.filepath || target.dataset.taskid || '');
             }
         });
     }

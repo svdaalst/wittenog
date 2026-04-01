@@ -160,7 +160,7 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
         Deadline: d.Deadline != null ? DateOnly.Parse(d.Deadline) : null,
         Priority: d.Priority,
         LastModified: DateTimeOffset.Parse(d.LastModified)
-    );
+    ) { SourceFirstWikiLink = d.SourceFirstWikiLink };
 
     private static TaskItemData MapToData(TaskItem t) => new(
         Id: t.Id,
@@ -171,7 +171,8 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
         ProjectLink: t.ProjectLink,
         Deadline: t.Deadline?.ToString("yyyy-MM-dd"),
         Priority: t.Priority,
-        LastModified: t.LastModified.ToString("O")
+        LastModified: t.LastModified.ToString("O"),
+        SourceFirstWikiLink: t.SourceFirstWikiLink
     );
 }
 
@@ -191,5 +192,6 @@ internal record TaskItemData(
     string? ProjectLink,
     string? Deadline,
     int? Priority,
-    string LastModified
+    string LastModified,
+    string? SourceFirstWikiLink = null
 );

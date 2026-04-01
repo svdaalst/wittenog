@@ -1192,6 +1192,26 @@ html, body {
     border-radius: 4px;
 }
 
+/* Inline task completion button rendered inside note read view */
+.inline-task-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 3px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.95em;
+    line-height: 1;
+    margin-right: 4px;
+    padding: 0 3px;
+    vertical-align: middle;
+    opacity: 0.7;
+}
+.inline-task-btn:hover {
+    border-color: var(--accent, #e94560);
+    color: var(--accent, #e94560);
+    opacity: 1;
+}
+
 .task-priority { font-weight: bold; }
 .priority-high        { color: #e94560; }
 .priority-medium-high { color: #f48c42; }

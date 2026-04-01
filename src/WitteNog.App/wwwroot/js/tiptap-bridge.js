@@ -79,7 +79,9 @@ window.NoteBlockDelegate = {
             const actionTarget = e.target.closest('[data-action]');
             if (actionTarget) {
                 e.stopPropagation();
-                dotNetRef.invokeMethodAsync('HandleNoteAction', actionTarget.dataset.action);
+                dotNetRef.invokeMethodAsync('HandleNoteAction',
+                    actionTarget.dataset.action,
+                    actionTarget.dataset.taskid || '');
             }
         });
         element.addEventListener('keydown', (e) => {

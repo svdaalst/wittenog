@@ -62,8 +62,20 @@ public class TaskScanService
             return;
         }
 
-        var lines = _fs.File.ReadAllLines(filePath);
-        var lastModified = new DateTimeOffset(_fs.FileInfo.New(filePath).LastWriteTimeUtc, TimeSpan.Zero);
+        string[] lines;
+        DateTimeOffset lastModified;
+        try
+        {
+            lines = _fs.File.ReadAllLines(filePath);
+            lastModified = new DateTimeOffset(_fs.FileInfo.New(filePath).LastWriteTimeUtc, TimeSpan.Zero);
+        }
+        catch (IOException)
+        {
+            // Bestand is tijdelijk vergrendeld door een lopende write-operatie.
+            // Cache ongewijzigd laten; de volgende FSW-event scant opnieuw.
+            return;
+        }
+
         var tasks = TaskParser.ParseAllTasks(lines, filePath, lastModified);
         _cache.SetTasksForFile(vaultPath, filePath, tasks);
     }

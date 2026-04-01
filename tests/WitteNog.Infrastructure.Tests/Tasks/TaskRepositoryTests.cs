@@ -156,4 +156,22 @@ public class TaskRepositoryTests
         Assert.Equal("- [ ] Do the thing", lines[1]); // line 1 unchanged
         Assert.Equal("- [x] Do the thing", lines[2]); // line 2 completed
     }
+
+    [Fact]
+    public async Task CompleteTask_EmptyCache_StillCompletesViaLineNumber()
+    {
+        // Reproduces the production bug: JsonSettingsProvider returns Tasks:[] from disk
+        // because cache was invalidated, but the task ID encodes the file path and line number.
+        var fs = new MockFileSystem();
+        fs.AddFile(FilePath, new MockFileData("# Note\n- [ ] Do the thing"));
+
+        var cache = new MemoryTaskCache();
+        // Cache is intentionally empty — simulates cache invalidation scenario.
+
+        var task = MakeTask(lineNumber: 1);
+        await BuildSut(fs, cache).CompleteTaskAsync(VaultPath, task.Id);
+
+        var lines = fs.File.ReadAllLines(FilePath);
+        Assert.Equal("- [x] Do the thing", lines[1]);
+    }
 }

@@ -1185,6 +1185,18 @@ html, body {
 
 .tasks-btn:hover { opacity: 1; }
 
+.complete-task-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.6;
+}
+.complete-task-btn:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+
 .task-archive-warning {
     margin-top: 12px;
     padding: 8px 12px;

@@ -14,6 +14,20 @@ window.OnboardingDelegate = {
     }
 };
 
+// Task dashboard delegation — passes action and taskid
+window.TaskDelegate = {
+    attach(element, dotNetRef) {
+        element.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action]');
+            if (target) {
+                dotNetRef.invokeMethodAsync('HandleAction',
+                    target.dataset.action,
+                    target.dataset.taskid || '');
+            }
+        });
+    }
+};
+
 // Tab bar delegation — passes both action and tabid
 window.TabDelegate = {
     attach(element, dotNetRef) {

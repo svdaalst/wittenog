@@ -77,7 +77,7 @@ public class FlowRepository : IFlowRepository
                 n.Id, n.X, n.Y, n.Width, n.Height, n.Text,
                 n.Shape.ToString().ToLowerInvariant())).ToArray(),
             Edges: diagram.Edges.Select(e => new FlowEdgeDto(
-                e.Id, e.FromNodeId, e.ToNodeId, e.Label)).ToArray());
+                e.Id, e.FromNodeId, e.ToNodeId, e.Label, e.FromPort, e.ToPort)).ToArray());
 
         var json = JsonSerializer.Serialize(dto, JsonOptions);
         await Task.Run(() => _fs.File.WriteAllText(newFilePath, json), ct);
@@ -108,7 +108,7 @@ public class FlowRepository : IFlowRepository
                 n.Id, n.X, n.Y, n.Width, n.Height, n.Text,
                 ParseShape(n.Shape))).ToList();
             var edges = dto.Edges.Select(e => new FlowEdge(
-                e.Id, e.FromNodeId, e.ToNodeId, e.Label)).ToList();
+                e.Id, e.FromNodeId, e.ToNodeId, e.Label, e.FromPort, e.ToPort)).ToList();
 
             return new FlowDiagram(
                 Id: stem,
@@ -142,5 +142,5 @@ public class FlowRepository : IFlowRepository
 
     private record FlowFileDto(int Version, FlowNodeDto[] Nodes, FlowEdgeDto[] Edges);
     private record FlowNodeDto(string Id, double X, double Y, double Width, double Height, string Text, string Shape);
-    private record FlowEdgeDto(string Id, string FromNodeId, string ToNodeId, string? Label);
+    private record FlowEdgeDto(string Id, string FromNodeId, string ToNodeId, string? Label, string? FromPort = null, string? ToPort = null);
 }

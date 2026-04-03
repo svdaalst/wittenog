@@ -62,27 +62,60 @@ window.FlowBlockDelegate = {
         defs.appendChild(marker);
         svgEl.appendChild(defs);
 
+        // Port helpers (inline, no access to FlowCanvasDelegate here)
+        const portPos = (node, port) => {
+            const cx = node.x + node.width / 2, cy = node.y + node.height / 2;
+            switch (port) {
+                case 'top':    return { x: cx,                  y: node.y };
+                case 'right':  return { x: node.x + node.width, y: cy };
+                case 'bottom': return { x: cx,                  y: node.y + node.height };
+                case 'left':   return { x: node.x,              y: cy };
+                default:       return { x: cx,                  y: cy };
+            }
+        };
+        const portDir = port => {
+            switch (port) {
+                case 'top':    return { x:  0, y: -1 };
+                case 'right':  return { x:  1, y:  0 };
+                case 'bottom': return { x:  0, y:  1 };
+                case 'left':   return { x: -1, y:  0 };
+                default:       return { x:  0, y:  0 };
+            }
+        };
+        const autoRoute = (fn, tn) => {
+            const dx = (tn.x + tn.width / 2) - (fn.x + fn.width / 2);
+            const dy = (tn.y + tn.height / 2) - (fn.y + fn.height / 2);
+            return Math.abs(dx) >= Math.abs(dy)
+                ? { fp: dx >= 0 ? 'right' : 'left', tp: dx >= 0 ? 'left' : 'right' }
+                : { fp: dy >= 0 ? 'bottom' : 'top', tp: dy >= 0 ? 'top' : 'bottom' };
+        };
+
         // Edges
         for (const edge of edges) {
             const from = nodes.find(n => n.id === edge.fromNodeId);
-            const to = nodes.find(n => n.id === edge.toNodeId);
+            const to   = nodes.find(n => n.id === edge.toNodeId);
             if (!from || !to) continue;
-            const x1 = from.x + from.width / 2;
-            const y1 = from.y + from.height / 2;
-            const x2 = to.x + to.width / 2;
-            const y2 = to.y + to.height / 2;
-            const mx = (x1 + x2) / 2;
-            const my = (y1 + y2) / 2 - 20;
+
+            const ar = autoRoute(from, to);
+            const fp = edge.fromPort || ar.fp;
+            const tp = edge.toPort   || ar.tp;
+            const p1 = portPos(from, fp);
+            const p2 = portPos(to, tp);
+            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            const off  = Math.max(40, dist * 0.45);
+            const d1 = portDir(fp), d2 = portDir(tp);
+            const d = `M ${p1.x} ${p1.y} C ${p1.x + d1.x * off} ${p1.y + d1.y * off} ${p2.x + d2.x * off} ${p2.y + d2.y * off} ${p2.x} ${p2.y}`;
+
             const path = document.createElementNS(ns, 'path');
-            path.setAttribute('d', `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`);
+            path.setAttribute('d', d);
             path.setAttribute('class', 'flow-edge');
             path.setAttribute('marker-end', `url(#${markerId})`);
             svgEl.appendChild(path);
 
             if (edge.label) {
                 const lbl = document.createElementNS(ns, 'text');
-                lbl.setAttribute('x', mx);
-                lbl.setAttribute('y', my - 4);
+                lbl.setAttribute('x', (p1.x + p2.x) / 2);
+                lbl.setAttribute('y', (p1.y + p2.y) / 2 - 6);
                 lbl.setAttribute('text-anchor', 'middle');
                 lbl.setAttribute('class', 'flow-edge-label');
                 lbl.textContent = edge.label;
@@ -199,24 +232,22 @@ window.FlowCanvasDelegate = {
             const toNode = inst.state.nodes.find(n => n.id === edge.toNodeId);
             if (!fromNode || !toNode) continue;
 
-            const x1 = fromNode.x + fromNode.width / 2;
-            const y1 = fromNode.y + fromNode.height / 2;
-            const x2 = toNode.x + toNode.width / 2;
-            const y2 = toNode.y + toNode.height / 2;
-            const mx = (x1 + x2) / 2;
-            const my = (y1 + y2) / 2 - 20;
+            const { fromPort, toPort } = this._resolvePorts(edge, fromNode, toNode);
+            const d = this._edgePath(fromNode, fromPort, toNode, toPort);
 
             const path = document.createElementNS(ns, 'path');
-            path.setAttribute('d', `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`);
+            path.setAttribute('d', d);
             path.setAttribute('class', 'flow-edge' + (inst.selected?.type === 'edge' && inst.selected.id === edge.id ? ' selected' : ''));
             path.setAttribute('marker-end', `url(#arrow-${id})`);
             path.setAttribute('data-edge-id', edge.id);
             svg.appendChild(path);
 
             if (edge.label) {
+                const p1 = this._portPos(fromNode, fromPort);
+                const p2 = this._portPos(toNode, toPort);
                 const txt = document.createElementNS(ns, 'text');
-                txt.setAttribute('x', mx);
-                txt.setAttribute('y', my - 4);
+                txt.setAttribute('x', (p1.x + p2.x) / 2);
+                txt.setAttribute('y', (p1.y + p2.y) / 2 - 6);
                 txt.setAttribute('text-anchor', 'middle');
                 txt.setAttribute('class', 'flow-edge-label');
                 txt.textContent = edge.label;
@@ -253,7 +284,7 @@ window.FlowCanvasDelegate = {
             shape.setAttribute('class', 'flow-node-shape');
             g.appendChild(shape);
 
-            // Text (simple single-line; newlines shown as spaces in editor)
+            // Text
             const txt = document.createElementNS(ns, 'text');
             txt.setAttribute('x', node.x + node.width / 2);
             txt.setAttribute('y', node.y + node.height / 2 + 5);
@@ -262,17 +293,79 @@ window.FlowCanvasDelegate = {
             txt.textContent = node.text;
             g.appendChild(txt);
 
-            // Connect handle (small circle on right edge, visible on hover/select)
-            const handle = document.createElementNS(ns, 'circle');
-            handle.setAttribute('cx', node.x + node.width);
-            handle.setAttribute('cy', node.y + node.height / 2);
-            handle.setAttribute('r', '6');
-            handle.setAttribute('class', 'flow-connect-handle');
-            handle.setAttribute('data-connect-from', node.id);
-            g.appendChild(handle);
+            // Four connection handles: top, right, bottom, left
+            for (const port of ['top', 'right', 'bottom', 'left']) {
+                const pp = this._portPos(node, port);
+                const handle = document.createElementNS(ns, 'circle');
+                handle.setAttribute('cx', pp.x);
+                handle.setAttribute('cy', pp.y);
+                handle.setAttribute('r', '5');
+                handle.setAttribute('class', 'flow-connect-handle');
+                handle.setAttribute('data-connect-from', node.id);
+                handle.setAttribute('data-connect-port', port);
+                g.appendChild(handle);
+            }
 
             svg.appendChild(g);
         }
+    },
+
+    // ── Port helpers ─────────────────────────────────────────────────────────
+
+    _portPos(node, port) {
+        const cx = node.x + node.width / 2, cy = node.y + node.height / 2;
+        switch (port) {
+            case 'top':    return { x: cx,                 y: node.y };
+            case 'right':  return { x: node.x + node.width, y: cy };
+            case 'bottom': return { x: cx,                 y: node.y + node.height };
+            case 'left':   return { x: node.x,             y: cy };
+            default:       return { x: cx,                 y: cy };
+        }
+    },
+
+    _portDir(port) {
+        switch (port) {
+            case 'top':    return { x:  0, y: -1 };
+            case 'right':  return { x:  1, y:  0 };
+            case 'bottom': return { x:  0, y:  1 };
+            case 'left':   return { x: -1, y:  0 };
+            default:       return { x:  0, y:  0 };
+        }
+    },
+
+    _autoRoute(fromNode, toNode) {
+        const dx = (toNode.x + toNode.width / 2) - (fromNode.x + fromNode.width / 2);
+        const dy = (toNode.y + toNode.height / 2) - (fromNode.y + fromNode.height / 2);
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            return { fromPort: dx >= 0 ? 'right' : 'left', toPort: dx >= 0 ? 'left' : 'right' };
+        }
+        return { fromPort: dy >= 0 ? 'bottom' : 'top', toPort: dy >= 0 ? 'top' : 'bottom' };
+    },
+
+    _resolvePorts(edge, fromNode, toNode) {
+        if (edge.fromPort && edge.toPort) return { fromPort: edge.fromPort, toPort: edge.toPort };
+        const auto = this._autoRoute(fromNode, toNode);
+        return { fromPort: edge.fromPort || auto.fromPort, toPort: edge.toPort || auto.toPort };
+    },
+
+    _nearestPort(pos, node) {
+        let best = 'left', bestD = Infinity;
+        for (const port of ['top', 'right', 'bottom', 'left']) {
+            const pp = this._portPos(node, port);
+            const d = (pos.x - pp.x) ** 2 + (pos.y - pp.y) ** 2;
+            if (d < bestD) { bestD = d; best = port; }
+        }
+        return best;
+    },
+
+    _edgePath(fromNode, fromPort, toNode, toPort) {
+        const p1 = this._portPos(fromNode, fromPort);
+        const p2 = this._portPos(toNode, toPort);
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const off = Math.max(40, dist * 0.45);
+        const d1 = this._portDir(fromPort);
+        const d2 = this._portDir(toPort);
+        return `M ${p1.x} ${p1.y} C ${p1.x + d1.x * off} ${p1.y + d1.y * off} ${p2.x + d2.x * off} ${p2.y + d2.y * off} ${p2.x} ${p2.y}`;
     },
 
     // ── Events ───────────────────────────────────────────────────────────────
@@ -332,13 +425,17 @@ window.FlowCanvasDelegate = {
             if (handle) {
                 e.stopPropagation();
                 inst.connectFrom = handle.dataset.connectFrom;
-                const pt = self._svgPoint(svg, e);
+                inst.connectFromPort = handle.dataset.connectPort || 'right';
+                const fromNode = inst.state.nodes.find(n => n.id === inst.connectFrom);
+                const portPos = fromNode
+                    ? self._portPos(fromNode, inst.connectFromPort)
+                    : self._svgPoint(svg, e);
                 const ns = 'http://www.w3.org/2000/svg';
                 inst.edgePreview = document.createElementNS(ns, 'line');
-                inst.edgePreview.setAttribute('x1', pt.x);
-                inst.edgePreview.setAttribute('y1', pt.y);
-                inst.edgePreview.setAttribute('x2', pt.x);
-                inst.edgePreview.setAttribute('y2', pt.y);
+                inst.edgePreview.setAttribute('x1', portPos.x);
+                inst.edgePreview.setAttribute('y1', portPos.y);
+                inst.edgePreview.setAttribute('x2', portPos.x);
+                inst.edgePreview.setAttribute('y2', portPos.y);
                 inst.edgePreview.setAttribute('class', 'flow-edge-preview');
                 svg.appendChild(inst.edgePreview);
                 return;
@@ -416,9 +513,13 @@ window.FlowCanvasDelegate = {
                 if (inst.connectFrom) {
                     const targetG = e.target.closest('[data-node-id]');
                     if (targetG && targetG.dataset.nodeId !== inst.connectFrom) {
-                        self._addEdge(id, inst.connectFrom, targetG.dataset.nodeId);
+                        const pt = self._svgPoint(svg, e);
+                        const toNode = inst.state.nodes.find(n => n.id === targetG.dataset.nodeId);
+                        const toPort = toNode ? self._nearestPort(pt, toNode) : 'left';
+                        self._addEdge(id, inst.connectFrom, inst.connectFromPort || 'right', targetG.dataset.nodeId, toPort);
                     }
                     inst.connectFrom = null;
+                    inst.connectFromPort = null;
                 }
                 return;
             }
@@ -472,12 +573,12 @@ window.FlowCanvasDelegate = {
         this._editNodeText(id, nodeId);
     },
 
-    _addEdge(id, fromId, toId) {
+    _addEdge(id, fromId, fromPort, toId, toPort) {
         const inst = this._instances[id];
-        // Prevent duplicate edges
+        // Prevent duplicate edges between the same nodes
         const exists = inst.state.edges.some(e => e.fromNodeId === fromId && e.toNodeId === toId);
         if (exists) return;
-        inst.state.edges.push({ id: 'e' + Date.now(), fromNodeId: fromId, toNodeId: toId, label: null });
+        inst.state.edges.push({ id: 'e' + Date.now(), fromNodeId: fromId, fromPort, toNodeId: toId, toPort, label: null });
         this._render(id);
     },
 

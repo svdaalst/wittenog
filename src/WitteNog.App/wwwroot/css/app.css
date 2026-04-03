@@ -1626,6 +1626,15 @@ html, body {
 .flow-node:hover .flow-connect-handle,
 .flow-node.selected .flow-connect-handle { opacity: 1; }
 
+.flow-edge-delete-btn { cursor: pointer; }
+.flow-edge-delete-circle { fill: var(--accent); }
+.flow-edge-delete-x {
+    fill: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    pointer-events: none;
+}
+
 .flow-edge-preview {
     stroke: var(--accent);
     stroke-width: 1.5;

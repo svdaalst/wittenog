@@ -11,152 +11,196 @@
 
 <div class="modal-overlay">
     <div class="modal settings-modal" @ref="_modal">
+
         <div class="settings-header">
             <h3>Instellingen</h3>
             <button class="settings-close-btn" data-action="close" title="Sluiten">✕</button>
         </div>
 
-        @* ── Vault locaties ──────────────────────────────────────────── *@
-        <h4 class="settings-section-title">Vault locaties</h4>
-        <ul class="language-list">
-            @for (int i = 0; i < VaultContext.VaultPaths.Count; i++)
-            {
-                var idx = i;
-                var path = VaultContext.VaultPaths[idx];
-                var isActive = path == VaultContext.VaultPath;
-                <li class="language-list-item">
-                    <span class="language-name @(isActive ? "vault-active" : "")">
-                        @(isActive ? "• " : "")@path
-                    </span>
-                    @if (!isActive)
-                    {
-                        <button class="lang-btn lang-btn--remove" title="Verwijderen"
-                                data-action="vault-remove-@idx">✕</button>
-                    }
-                </li>
-            }
-        </ul>
-        @if (OperatingSystem.IsAndroid())
-        {
-            <div class="settings-actions">
-                <button class="btn-primary" data-action="pick-vault-add">Vault toevoegen</button>
-            </div>
-        }
-        else
-        {
-            <div class="settings-row">
-                <span class="settings-label">Nieuwe vault:</span>
-                <input id="settings-path-input"
-                       class="onboarding-input"
-                       type="text"
-                       value="@_newPath" />
-            </div>
-            <div class="settings-actions">
-                <button class="btn-primary" data-action="add-vault">Vault toevoegen</button>
-            </div>
-        }
-        @if (_error != null)
-        {
-            <p class="settings-error">@_error</p>
-        }
+        <div class="settings-layout">
 
-        @* ── Transcriptie ─────────────────────────────────────────────── *@
-        <hr class="settings-divider" />
-        <h4 class="settings-section-title">Transcriptie</h4>
+            @* ── Tabblad-navigatie ───────────────────────────────────── *@
+            <nav class="settings-nav">
+                <button class="settings-nav-item @(_activeTab == "vault"         ? "active" : "")" data-action="tab-vault">Vault</button>
+                <button class="settings-nav-item @(_activeTab == "transcriptie"  ? "active" : "")" data-action="tab-transcriptie">Transcriptie</button>
+                <button class="settings-nav-item @(_activeTab == "template"      ? "active" : "")" data-action="tab-template">Dag-template</button>
+                <button class="settings-nav-item @(_activeTab == "over"          ? "active" : "")" data-action="tab-over">Over</button>
+            </nav>
 
-        <div class="settings-row">
-            <span class="settings-label">Model:</span>
-            <select id="settings-model-select" class="settings-select">
-                <option value="Tiny"   selected="@(_transcriptionModel == "Tiny")">Tiny (39 MB, snelst)</option>
-                <option value="Base"   selected="@(_transcriptionModel == "Base")">Base (142 MB, standaard)</option>
-                @if (!OperatingSystem.IsAndroid())
+            <div class="settings-body">
+
+                @* ── Vault locaties ──────────────────────────────────── *@
+                @if (_activeTab == "vault")
                 {
-                    <option value="Small"  selected="@(_transcriptionModel == "Small")">Small (461 MB)</option>
-                    <option value="Medium" selected="@(_transcriptionModel == "Medium")">Medium (1,5 GB)</option>
-                    <option value="Large"  selected="@(_transcriptionModel == "Large")">Large (2,9 GB, nauwkeurigst)</option>
-                }
-            </select>
-        </div>
-
-        <div class="settings-row settings-row--column">
-            <span class="settings-label">Beschikbare talen <small>(volgorde = dropdown-volgorde bij opname)</small>:</span>
-            <ul class="language-list">
-                @for (int i = 0; i < _languages.Count; i++)
-                {
-                    var idx = i;
-                    var langCode = _languages[idx];
-                    <li class="language-list-item">
-                        <span class="language-name">@KnownLanguages.GetName(langCode) <small>(@langCode)</small></span>
-                        <button class="lang-btn" title="Omhoog"
-                                disabled="@(idx == 0)"
-                                data-action="lang-up-@idx">↑</button>
-                        <button class="lang-btn" title="Omlaag"
-                                disabled="@(idx == _languages.Count - 1)"
-                                data-action="lang-down-@idx">↓</button>
-                        <button class="lang-btn lang-btn--remove" title="Verwijderen"
-                                data-action="lang-remove-@idx">✕</button>
-                    </li>
-                }
-            </ul>
-
-            @if (_addableLanguages.Count > 0)
-            {
-                <div class="language-add-row">
-                    <select id="settings-lang-add-select" class="settings-select settings-select--small">
-                        @foreach (var (langCode, langName) in _addableLanguages)
+                    <h4 class="settings-section-title">Vault locaties</h4>
+                    <ul class="language-list">
+                        @for (int i = 0; i < VaultContext.VaultPaths.Count; i++)
                         {
-                            <option value="@langCode" selected="@(langCode == _languageToAdd)">@langName</option>
+                            var idx = i;
+                            var path = VaultContext.VaultPaths[idx];
+                            var isActive = path == VaultContext.VaultPath;
+                            <li class="language-list-item">
+                                <span class="language-name @(isActive ? "vault-active" : "")">
+                                    @(isActive ? "• " : "")@path
+                                </span>
+                                @if (!isActive)
+                                {
+                                    <button class="lang-btn lang-btn--remove" title="Verwijderen"
+                                            data-action="vault-remove-@idx">✕</button>
+                                }
+                            </li>
                         }
-                    </select>
-                    <button class="btn-secondary" data-action="lang-add">+ Toevoegen</button>
-                </div>
-            }
-        </div>
-
-        <div class="settings-actions">
-            <button class="btn-primary" data-action="save-transcription">Transcriptie opslaan</button>
-        </div>
-        @if (_transcriptionSaved)
-        {
-            <p class="settings-success">Instellingen opgeslagen.</p>
-        }
-
-        @* ── Over de app ──────────────────────────────────────────────── *@
-        <hr class="settings-divider" />
-        <h4 class="settings-section-title">Over de app</h4>
-
-        <div class="settings-row">
-            <span class="settings-label">Versie:</span>
-            <span>@Microsoft.Maui.ApplicationModel.AppInfo.VersionString</span>
-        </div>
-
-        <div class="settings-actions">
-            <button class="btn-secondary" data-action="check-update" disabled="@_checkingUpdate">
-                @(_checkingUpdate ? "Bezig…" : "Controleer op updates")
-            </button>
-        </div>
-
-        @if (_updateMessage != null)
-        {
-            <p class="@(_updateAvailableVersion != null ? "settings-success" : "settings-error")">
-                @_updateMessage
-            </p>
-        }
-        @if (_updateAvailableVersion != null)
-        {
-            <div class="settings-actions">
-                @if (_updating)
-                {
-                    <span>Bijwerken… @_updateProgress%</span>
+                    </ul>
+                    @if (OperatingSystem.IsAndroid())
+                    {
+                        <div class="settings-actions">
+                            <button class="btn-primary" data-action="pick-vault-add">Vault toevoegen</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="settings-row">
+                            <span class="settings-label">Nieuwe vault:</span>
+                            <input id="settings-path-input"
+                                   class="onboarding-input"
+                                   type="text"
+                                   value="@_newPath" />
+                        </div>
+                        <div class="settings-actions">
+                            <button class="btn-primary" data-action="add-vault">Vault toevoegen</button>
+                        </div>
+                    }
+                    @if (_error != null)
+                    {
+                        <p class="settings-error">@_error</p>
+                    }
                 }
-                else
+
+                @* ── Transcriptie ─────────────────────────────────────── *@
+                @if (_activeTab == "transcriptie")
                 {
-                    <button class="btn-primary" data-action="apply-update">
-                        Bijwerken naar v@_updateAvailableVersion
-                    </button>
+                    <h4 class="settings-section-title">Transcriptie</h4>
+
+                    <div class="settings-row">
+                        <span class="settings-label">Model:</span>
+                        <select id="settings-model-select" class="settings-select">
+                            <option value="Tiny"   selected="@(_transcriptionModel == "Tiny")">Tiny (39 MB, snelst)</option>
+                            <option value="Base"   selected="@(_transcriptionModel == "Base")">Base (142 MB, standaard)</option>
+                            @if (!OperatingSystem.IsAndroid())
+                            {
+                                <option value="Small"  selected="@(_transcriptionModel == "Small")">Small (461 MB)</option>
+                                <option value="Medium" selected="@(_transcriptionModel == "Medium")">Medium (1,5 GB)</option>
+                                <option value="Large"  selected="@(_transcriptionModel == "Large")">Large (2,9 GB, nauwkeurigst)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="settings-row settings-row--column">
+                        <span class="settings-label">Beschikbare talen <small>(volgorde = dropdown-volgorde bij opname)</small>:</span>
+                        <ul class="language-list">
+                            @for (int i = 0; i < _languages.Count; i++)
+                            {
+                                var idx = i;
+                                var langCode = _languages[idx];
+                                <li class="language-list-item">
+                                    <span class="language-name">@KnownLanguages.GetName(langCode) <small>(@langCode)</small></span>
+                                    <button class="lang-btn" title="Omhoog"
+                                            disabled="@(idx == 0)"
+                                            data-action="lang-up-@idx">↑</button>
+                                    <button class="lang-btn" title="Omlaag"
+                                            disabled="@(idx == _languages.Count - 1)"
+                                            data-action="lang-down-@idx">↓</button>
+                                    <button class="lang-btn lang-btn--remove" title="Verwijderen"
+                                            data-action="lang-remove-@idx">✕</button>
+                                </li>
+                            }
+                        </ul>
+
+                        @if (_addableLanguages.Count > 0)
+                        {
+                            <div class="language-add-row">
+                                <select id="settings-lang-add-select" class="settings-select settings-select--small">
+                                    @foreach (var (langCode, langName) in _addableLanguages)
+                                    {
+                                        <option value="@langCode" selected="@(langCode == _languageToAdd)">@langName</option>
+                                    }
+                                </select>
+                                <button class="btn-secondary" data-action="lang-add">+ Toevoegen</button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="btn-primary" data-action="save-transcription">Opslaan</button>
+                    </div>
+                    @if (_transcriptionSaved)
+                    {
+                        <p class="settings-success">Instellingen opgeslagen.</p>
+                    }
                 }
+
+                @* ── Dag-template ─────────────────────────────────────── *@
+                @if (_activeTab == "template")
+                {
+                    <h4 class="settings-section-title">Dag-template</h4>
+                    <p class="settings-hint">Inhoud die wordt toegevoegd aan elke nieuw aangemaakte dagnotitie (markdown).</p>
+
+                    <div class="settings-row settings-row--column">
+                        <textarea id="settings-daily-template"
+                                  class="settings-textarea"
+                                  rows="8">@_dailyTemplate</textarea>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="btn-primary" data-action="save-daily-template">Opslaan</button>
+                    </div>
+                    @if (_dailyTemplateSaved)
+                    {
+                        <p class="settings-success">Template opgeslagen.</p>
+                    }
+                }
+
+                @* ── Over de app ──────────────────────────────────────── *@
+                @if (_activeTab == "over")
+                {
+                    <h4 class="settings-section-title">Over de app</h4>
+
+                    <div class="settings-row">
+                        <span class="settings-label">Versie:</span>
+                        <span>@Microsoft.Maui.ApplicationModel.AppInfo.VersionString</span>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="btn-secondary" data-action="check-update" disabled="@_checkingUpdate">
+                            @(_checkingUpdate ? "Bezig…" : "Controleer op updates")
+                        </button>
+                    </div>
+
+                    @if (_updateMessage != null)
+                    {
+                        <p class="@(_updateAvailableVersion != null ? "settings-success" : "settings-error")">
+                            @_updateMessage
+                        </p>
+                    }
+                    @if (_updateAvailableVersion != null)
+                    {
+                        <div class="settings-actions">
+                            @if (_updating)
+                            {
+                                <span>Bijwerken… @_updateProgress%</span>
+                            }
+                            else
+                            {
+                                <button class="btn-primary" data-action="apply-update">
+                                    Bijwerken naar v@_updateAvailableVersion
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+
             </div>
-        }
+        </div>
     </div>
 </div>
 
@@ -165,6 +209,7 @@
 
     private ElementReference _modal;
     private DotNetObjectReference<SettingsPage>? _dotNetRef;
+    private string _activeTab = "vault";
     private string _newPath = string.Empty;
     private string? _error;
 
@@ -172,6 +217,9 @@
     private List<string> _languages = ["nl"];
     private string _languageToAdd = string.Empty;
     private bool _transcriptionSaved;
+
+    private string _dailyTemplate = string.Empty;
+    private bool _dailyTemplateSaved;
 
     private bool _checkingUpdate;
     private string? _updateAvailableVersion;
@@ -188,6 +236,7 @@
     {
         _newPath = string.Empty;
         LoadTranscriptionSettings();
+        _dailyTemplate = VaultSettings.GetDailyTemplate(VaultContext.VaultPath ?? string.Empty) ?? string.Empty;
     }
 
     private void LoadTranscriptionSettings()
@@ -228,6 +277,11 @@
             RemoveVaultAtIndex(removeVaultIdx);
             await InvokeAsync(StateHasChanged);
         }
+        else if (action.StartsWith("tab-"))
+        {
+            _activeTab = action["tab-".Length..];
+            await InvokeAsync(StateHasChanged);
+        }
         else if (action == "close")
         {
             await OnClose.InvokeAsync();
@@ -260,6 +314,12 @@
         {
             _transcriptionModel = await JS.InvokeAsync<string>("getInputValue", "settings-model-select");
             SaveTranscriptionSettings();
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action == "save-daily-template")
+        {
+            _dailyTemplate = await JS.InvokeAsync<string>("getInputValue", "settings-daily-template");
+            SaveDailyTemplate();
             await InvokeAsync(StateHasChanged);
         }
         else if (action == "check-update")
@@ -350,6 +410,14 @@
         _languages.Add(_languageToAdd);
         _languageToAdd = _addableLanguages.FirstOrDefault().Code ?? string.Empty;
         _transcriptionSaved = false;
+    }
+
+    private void SaveDailyTemplate()
+    {
+        if (VaultContext.VaultPath is null) return;
+        VaultSettings.SaveDailyTemplate(VaultContext.VaultPath,
+            string.IsNullOrWhiteSpace(_dailyTemplate) ? null : _dailyTemplate);
+        _dailyTemplateSaved = true;
     }
 
     private void SaveTranscriptionSettings()

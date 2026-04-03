@@ -865,17 +865,73 @@ html, body {
 /* ============================================================
    Settings modal
    ============================================================ */
-.settings-modal { min-width: 420px; }
+.settings-modal {
+    min-width: 540px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
 
 .settings-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
 }
 
-.settings-header h3 {
+.settings-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 8px;
+    min-width: 120px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.settings-nav-item {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+}
+
+.settings-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+}
+
+.settings-nav-item.active {
+    background: rgba(233, 69, 96, 0.15);
+    color: var(--accent);
+}
+
+.settings-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 16px 24px 24px;
+}
+
+.settings-modal .settings-header h3 {
     margin: 0;
+    font-size: 15px;
 }
 
 .settings-close-btn {
@@ -944,6 +1000,30 @@ html, body {
     margin-top: 10px;
     font-size: 13px;
     color: #e57373;
+}
+
+.settings-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+}
+
+.settings-textarea {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text, #eee);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: monospace;
+    font-size: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.settings-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
 .settings-success {
@@ -1413,6 +1493,17 @@ html, body {
     }
     .settings-modal {
         min-width: calc(100vw - 32px);
+        padding: 0;
+    }
+
+    .settings-nav {
+        min-width: 90px;
+        padding: 8px 4px;
+    }
+
+    .settings-nav-item {
+        padding: 7px 8px;
+        font-size: 12px;
     }
 
     /* Canvas padding leaves room for FAB */

@@ -1,6 +1,7 @@
 @inject IMediator Mediator
 @inject VaultWatcherService Watcher
 @inject ILinkMetadataService MetadataService
+@inject IVaultSettings VaultSettings
 @inject IJSRuntime JS
 @implements IDisposable
 @using MediatR
@@ -123,6 +124,12 @@ else
             {
                 await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, $"[[{Tab.Query}]]"));
                 notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
+                var template = VaultSettings.GetDailyTemplate(VaultPath);
+                var initialContent = string.IsNullOrWhiteSpace(template)
+                    ? $"[[{Tab.Query}]]"
+                    : $"[[{Tab.Query}]]\n\n{template}";
+                await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, initialContent));
+                _notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
             }
 
             // Definition note stays first; remaining notes + flows sorted by LastModified descending

@@ -1,6 +1,7 @@
 @inject IMediator Mediator
 @inject VaultWatcherService Watcher
 @inject ILinkMetadataService MetadataService
+@inject IVaultSettings VaultSettings
 @inject IJSRuntime JS
 @implements IDisposable
 @using MediatR
@@ -101,7 +102,11 @@ else
 
             if (Tab.Type == TabType.DailyPage && !_notes.Any(n => n.Id == Tab.Query))
             {
-                await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, $"[[{Tab.Query}]]"));
+                var template = VaultSettings.GetDailyTemplate(VaultPath);
+                var initialContent = string.IsNullOrWhiteSpace(template)
+                    ? $"[[{Tab.Query}]]"
+                    : $"[[{Tab.Query}]]\n\n{template}";
+                await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, initialContent));
                 _notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
             }
         }

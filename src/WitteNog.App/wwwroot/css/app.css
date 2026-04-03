@@ -161,6 +161,148 @@ html, body {
 /* Vault active indicator in settings */
 .vault-active { font-weight: 600; color: var(--text); }
 
+/* ── Sidebar task panel ─────────────────────────────────────────────────── */
+.sidebar-task-panel {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+}
+
+.sidebar-task-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px 4px;
+}
+
+.sidebar-task-panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.sidebar-task-panel-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    border-radius: 10px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* 10 tasks × 28px row ≈ 280px; group headers add ~24px each */
+.sidebar-task-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.sidebar-task-group-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: left;
+    transition: background 0.1s;
+}
+
+.sidebar-task-group-header:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+}
+
+.sidebar-task-toggle {
+    font-size: 9px;
+    width: 10px;
+    flex-shrink: 0;
+}
+
+.sidebar-priority-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.sidebar-priority-dot--p1   { background: #e94560; }
+.sidebar-priority-dot--p2   { background: #f48c42; }
+.sidebar-priority-dot--p3   { background: #f4c542; }
+.sidebar-priority-dot--p4   { background: #a0c878; }
+.sidebar-priority-dot--p5   { background: rgba(255,255,255,0.35); }
+.sidebar-priority-dot--none { background: rgba(255,255,255,0.18); }
+
+.sidebar-task-group-label {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.sidebar-task-group-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 0px 5px;
+}
+
+.sidebar-task-items {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 2px;
+}
+
+.sidebar-task-item {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 0 10px 0 22px;
+}
+
+.sidebar-task-complete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 0;
+    flex-shrink: 0;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.1s, color 0.1s;
+}
+
+.sidebar-task-complete:hover {
+    opacity: 1;
+    color: #a0c878;
+}
+
+.sidebar-task-desc {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 0;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 175px;
+    transition: color 0.1s;
+}
+
+.sidebar-task-desc:hover {
+    color: var(--text);
+}
+
 /* Tree nodes */
 .tree-node { user-select: none; }
 
@@ -865,17 +1007,73 @@ html, body {
 /* ============================================================
    Settings modal
    ============================================================ */
-.settings-modal { min-width: 420px; }
+.settings-modal {
+    min-width: 540px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
 
 .settings-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
 }
 
-.settings-header h3 {
+.settings-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 8px;
+    min-width: 120px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.settings-nav-item {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+}
+
+.settings-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+}
+
+.settings-nav-item.active {
+    background: rgba(233, 69, 96, 0.15);
+    color: var(--accent);
+}
+
+.settings-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 16px 24px 24px;
+}
+
+.settings-modal .settings-header h3 {
     margin: 0;
+    font-size: 15px;
 }
 
 .settings-close-btn {
@@ -944,6 +1142,30 @@ html, body {
     margin-top: 10px;
     font-size: 13px;
     color: #e57373;
+}
+
+.settings-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+}
+
+.settings-textarea {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text, #eee);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: monospace;
+    font-size: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.settings-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
 .settings-success {
@@ -1413,6 +1635,17 @@ html, body {
     }
     .settings-modal {
         min-width: calc(100vw - 32px);
+        padding: 0;
+    }
+
+    .settings-nav {
+        min-width: 90px;
+        padding: 8px 4px;
+    }
+
+    .settings-nav-item {
+        padding: 7px 8px;
+        font-size: 12px;
     }
 
     /* Canvas padding leaves room for FAB */

@@ -1,0 +1,162 @@
+@inject IMediator Mediator
+@inject INavigationService NavService
+@inject IJSRuntime JS
+@inject WitteNog.App.Services.EditModeCoordinatorService EditModeCoordinator
+@implements IDisposable
+@using MediatR
+@using System.Text.Json
+@using WitteNog.App.Models
+@using WitteNog.App.Services
+@using WitteNog.Application.Commands
+@using WitteNog.Core.Models
+
+<div class="flow-block" @ref="_container">
+    @if (_showCanvas)
+    {
+        <FlowCanvas Diagram="@Flow" VaultPath="@VaultPath" OnSaved="OnCanvasSaved" OnClose="CloseCanvas" />
+    }
+    else
+    {
+        <div class="flow-preview">
+            <svg class="flow-diagram" @ref="_previewSvg"></svg>
+        </div>
+        <div class="flow-actions-bar">
+            <button class="flow-edit-btn" data-action="edit-flow" title="Bewerken">✏️</button>
+            <button class="flow-delete-btn" data-action="confirm-delete-flow" title="Verwijderen">✕</button>
+        </div>
+    }
+
+    @if (_showConfirm)
+    {
+        <div class="modal-overlay" data-action="cancel-delete-flow">
+            <div class="modal">
+                <h3>Diagram verwijderen?</h3>
+                <p class="modal-body">@Flow.Title</p>
+                <div class="modal-actions">
+                    <button data-action="delete-flow">Verwijderen</button>
+                    <button data-action="cancel-delete-flow">Annuleren</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public FlowDiagram Flow { get; set; } = null!;
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool _showCanvas;
+    private bool _showConfirm;
+    private bool _needsPreviewRender;
+    private string _diagramJson = "{}";
+    private ElementReference _container;
+    private ElementReference _previewSvg;
+    private DotNetObjectReference<FlowBlock>? _dotNetRef;
+
+    protected override void OnParametersSet()
+    {
+        _diagramJson = BuildDiagramJson(Flow);
+        _needsPreviewRender = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("FlowBlockDelegate.attach", _container, _dotNetRef);
+        }
+        if (_needsPreviewRender && !_showCanvas)
+        {
+            _needsPreviewRender = false;
+            await JS.InvokeVoidAsync("FlowBlockDelegate.renderPreview", _previewSvg, _diagramJson);
+        }
+    }
+
+    [JSInvokable]
+    public void NavigateToWikiLink(string link, bool shiftKey)
+    {
+        var type = System.Text.RegularExpressions.Regex.IsMatch(link, @"^\d{4}-\d{2}-\d{2}$")
+            ? TabType.DailyPage : TabType.TopicPage;
+        if (shiftKey) NavService.OpenNewTab(type, link);
+        else NavService.OpenTab(type, link);
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task HandleFlowAction(string action)
+    {
+        switch (action)
+        {
+            case "edit-flow":
+                if (!_showCanvas)
+                {
+                    await EditModeCoordinator.TryEnterEditModeAsync(Flow.Id, async () =>
+                    {
+                        _showCanvas = false;
+                        await InvokeAsync(StateHasChanged);
+                    });
+                    _showCanvas = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+                break;
+            case "confirm-delete-flow":
+                _showConfirm = true;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "delete-flow":
+                await Mediator.Send(new DeleteFlowCommand(Flow.FilePath));
+                _showConfirm = false;
+                await OnSaved.InvokeAsync();
+                break;
+            case "cancel-delete-flow":
+                _showConfirm = false;
+                await InvokeAsync(StateHasChanged);
+                break;
+        }
+    }
+
+    private async Task OnCanvasSaved()
+    {
+        _showCanvas = false;
+        _needsPreviewRender = true;
+        EditModeCoordinator.ExitEditMode(Flow.Id);
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task CloseCanvas()
+    {
+        _showCanvas = false;
+        _needsPreviewRender = true;
+        EditModeCoordinator.ExitEditMode(Flow.Id);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string BuildDiagramJson(FlowDiagram d)
+    {
+        var dto = new
+        {
+            nodes = d.Nodes.Select(n => new
+            {
+                id = n.Id, x = n.X, y = n.Y,
+                width = n.Width, height = n.Height,
+                text = n.Text,
+                shape = n.Shape.ToString().ToLowerInvariant()
+            }),
+            edges = d.Edges.Select(e => new
+            {
+                id = e.Id, fromNodeId = e.FromNodeId,
+                toNodeId = e.ToNodeId, label = e.Label
+            })
+        };
+        return JsonSerializer.Serialize(dto,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        EditModeCoordinator.ExitEditMode(Flow.Id);
+    }
+}

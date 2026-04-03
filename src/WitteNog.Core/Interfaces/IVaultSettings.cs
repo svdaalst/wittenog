@@ -12,4 +12,13 @@ public interface IVaultSettings
 
     /// <summary>Persists the transcription settings for the given vault.</summary>
     void SaveTranscriptionSettings(string vaultPath, TranscriptionSettings settings);
+
+    /// <summary>
+    /// Returns the markdown template body used when auto-creating a new daily note,
+    /// or <c>null</c> when no template has been configured.
+    /// </summary>
+    string? GetDailyTemplate(string vaultPath);
+
+    /// <summary>Persists the daily-note template for the given vault.</summary>
+    void SaveDailyTemplate(string vaultPath, string? template);
 }

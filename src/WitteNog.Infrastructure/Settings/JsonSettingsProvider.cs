@@ -110,6 +110,16 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
         Persist(vaultPath);
     }
 
+    public string? GetDailyTemplate(string vaultPath) =>
+        EnsureLoaded(vaultPath).DailyTemplate;
+
+    public void SaveDailyTemplate(string vaultPath, string? template)
+    {
+        EnsureLoaded(vaultPath);
+        _settings = _settings with { DailyTemplate = template };
+        Persist(vaultPath);
+    }
+
     // ── ITaskCache ──────────────────────────────────────────────────────────────
 
     public IReadOnlyList<TaskItem> GetTasks(string vaultPath)
@@ -181,6 +191,7 @@ internal record VaultSettings
     public List<string> ArchivedLinks { get; init; } = [];
     public TranscriptionSettings Transcription { get; init; } = new();
     public List<TaskItemData> Tasks { get; init; } = [];
+    public string? DailyTemplate { get; init; }
 }
 
 internal record TaskItemData(

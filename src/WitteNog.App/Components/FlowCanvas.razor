@@ -61,7 +61,7 @@
                 n.Id, n.X, n.Y, n.Width, n.Height, n.Text,
                 ParseShape(n.Shape))).ToList();
             var edges = (dto.Edges ?? Array.Empty<CanvasEdgeDto>()).Select(e => new FlowEdge(
-                e.Id, e.FromNodeId, e.ToNodeId, e.Label)).ToList();
+                e.Id, e.FromNodeId, e.ToNodeId, e.Label, e.FromPort, e.ToPort)).ToList();
 
             var updated = Diagram with
             {
@@ -110,7 +110,9 @@
             id = e.Id,
             fromNodeId = e.FromNodeId,
             toNodeId = e.ToNodeId,
-            label = e.Label
+            label = e.Label,
+            fromPort = e.FromPort,
+            toPort = e.ToPort
         })
     };
 
@@ -123,5 +125,5 @@
 
     private record CanvasStateDto(CanvasNodeDto[] Nodes, CanvasEdgeDto[] Edges);
     private record CanvasNodeDto(string Id, double X, double Y, double Width, double Height, string Text, string Shape);
-    private record CanvasEdgeDto(string Id, string FromNodeId, string ToNodeId, string? Label);
+    private record CanvasEdgeDto(string Id, string FromNodeId, string ToNodeId, string? Label, string? FromPort = null, string? ToPort = null);
 }

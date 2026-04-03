@@ -234,24 +234,59 @@ window.FlowCanvasDelegate = {
 
             const { fromPort, toPort } = this._resolvePorts(edge, fromNode, toNode);
             const d = this._edgePath(fromNode, fromPort, toNode, toPort);
+            const isSelected = inst.selected?.type === 'edge' && inst.selected.id === edge.id;
+
+            // Wide transparent hit area so thin paths are easy to click
+            const hit = document.createElementNS(ns, 'path');
+            hit.setAttribute('d', d);
+            hit.setAttribute('fill', 'none');
+            hit.setAttribute('stroke', 'transparent');
+            hit.setAttribute('stroke-width', '14');
+            hit.setAttribute('data-edge-id', edge.id);
+            svg.appendChild(hit);
 
             const path = document.createElementNS(ns, 'path');
             path.setAttribute('d', d);
-            path.setAttribute('class', 'flow-edge' + (inst.selected?.type === 'edge' && inst.selected.id === edge.id ? ' selected' : ''));
+            path.setAttribute('class', 'flow-edge' + (isSelected ? ' selected' : ''));
             path.setAttribute('marker-end', `url(#arrow-${id})`);
             path.setAttribute('data-edge-id', edge.id);
             svg.appendChild(path);
 
             if (edge.label) {
-                const p1 = this._portPos(fromNode, fromPort);
-                const p2 = this._portPos(toNode, toPort);
+                const mid = this._edgeMidpoint(fromNode, fromPort, toNode, toPort);
                 const txt = document.createElementNS(ns, 'text');
-                txt.setAttribute('x', (p1.x + p2.x) / 2);
-                txt.setAttribute('y', (p1.y + p2.y) / 2 - 6);
+                txt.setAttribute('x', mid.x);
+                txt.setAttribute('y', mid.y - 8);
                 txt.setAttribute('text-anchor', 'middle');
                 txt.setAttribute('class', 'flow-edge-label');
                 txt.textContent = edge.label;
                 svg.appendChild(txt);
+            }
+
+            // Delete button at edge midpoint — only shown when selected
+            if (isSelected) {
+                const mid = this._edgeMidpoint(fromNode, fromPort, toNode, toPort);
+                const btnG = document.createElementNS(ns, 'g');
+                btnG.setAttribute('data-delete-edge', edge.id);
+                btnG.setAttribute('class', 'flow-edge-delete-btn');
+
+                const circle = document.createElementNS(ns, 'circle');
+                circle.setAttribute('cx', mid.x);
+                circle.setAttribute('cy', mid.y);
+                circle.setAttribute('r', '10');
+                circle.setAttribute('class', 'flow-edge-delete-circle');
+                btnG.appendChild(circle);
+
+                const cross = document.createElementNS(ns, 'text');
+                cross.setAttribute('x', mid.x);
+                cross.setAttribute('y', mid.y);
+                cross.setAttribute('text-anchor', 'middle');
+                cross.setAttribute('dominant-baseline', 'central');
+                cross.setAttribute('class', 'flow-edge-delete-x');
+                cross.textContent = '×';
+                btnG.appendChild(cross);
+
+                svg.appendChild(btnG);
             }
         }
 
@@ -368,6 +403,22 @@ window.FlowCanvasDelegate = {
         return `M ${p1.x} ${p1.y} C ${p1.x + d1.x * off} ${p1.y + d1.y * off} ${p2.x + d2.x * off} ${p2.y + d2.y * off} ${p2.x} ${p2.y}`;
     },
 
+    _edgeMidpoint(fromNode, fromPort, toNode, toPort) {
+        const p1 = this._portPos(fromNode, fromPort);
+        const p2 = this._portPos(toNode, toPort);
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const off = Math.max(40, dist * 0.45);
+        const d1 = this._portDir(fromPort);
+        const d2 = this._portDir(toPort);
+        const cp1x = p1.x + d1.x * off, cp1y = p1.y + d1.y * off;
+        const cp2x = p2.x + d2.x * off, cp2y = p2.y + d2.y * off;
+        // De Casteljau at t = 0.5 for cubic bezier
+        return {
+            x: 0.125 * p1.x + 0.375 * cp1x + 0.375 * cp2x + 0.125 * p2.x,
+            y: 0.125 * p1.y + 0.375 * cp1y + 0.375 * cp2y + 0.125 * p2.y,
+        };
+    },
+
     // ── Events ───────────────────────────────────────────────────────────────
 
     _attachEvents(id) {
@@ -421,6 +472,17 @@ window.FlowCanvasDelegate = {
         const DRAG_THRESHOLD = 5; // px — movement beyond this commits to a drag
 
         svg.addEventListener('mousedown', e => {
+            // Delete button on selected edge
+            const delBtn = e.target.closest('[data-delete-edge]');
+            if (delBtn) {
+                e.stopPropagation();
+                const edgeId = delBtn.dataset.deleteEdge;
+                inst.state.edges = inst.state.edges.filter(ed => ed.id !== edgeId);
+                inst.selected = null;
+                self._render(id);
+                return;
+            }
+
             const handle = e.target.closest('[data-connect-from]');
             if (handle) {
                 e.stopPropagation();

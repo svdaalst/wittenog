@@ -68,7 +68,7 @@ else
 
     @if (_updateVersion != null)
     {
-        <div class="update-toast">
+        <div class="update-toast" @ref="_updateToast">
             @if (_updating)
             {
                 <span>Bijwerken… @_updateProgress%</span>
@@ -76,8 +76,8 @@ else
             else
             {
                 <span>Versie @_updateVersion beschikbaar</span>
-                <button @onclick="ApplyUpdate">Bijwerken</button>
-                <button @onclick="() => _updateVersion = null">✕</button>
+                <button data-action="apply-update">Bijwerken</button>
+                <button data-action="dismiss-update">✕</button>
             }
         </div>
     }
@@ -93,6 +93,8 @@ else
     private string? _updateVersion;
     private bool _updating;
     private int _updateProgress;
+    private ElementReference _updateToast;
+    private bool _updateToastAttached;
 
     private string VaultPath => VaultContext.VaultPath ?? string.Empty;
 
@@ -152,17 +154,31 @@ else
             _dotNetRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("OnboardingDelegate.attach", _topBar, _dotNetRef);
         }
+
+        if (!_updateToastAttached && _updateVersion != null && _dotNetRef != null)
+        {
+            _updateToastAttached = true;
+            await JS.InvokeVoidAsync("OnboardingDelegate.attach", _updateToast, _dotNetRef);
+        }
     }
 
     [JSInvokable]
-    public Task HandleAction(string action)
+    public async Task HandleAction(string action)
     {
         if (action == "settings")
         {
             _showSettings = true;
-            return InvokeAsync(StateHasChanged);
+            await InvokeAsync(StateHasChanged);
         }
-        return Task.CompletedTask;
+        else if (action == "apply-update")
+        {
+            await ApplyUpdate();
+        }
+        else if (action == "dismiss-update")
+        {
+            _updateVersion = null;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void OpenTasksTab() => NavService.OpenTab(TabType.TasksPage, "Taken");

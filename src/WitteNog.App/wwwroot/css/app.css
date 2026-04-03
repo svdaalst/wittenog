@@ -1635,6 +1635,16 @@ html, body {
     pointer-events: none;
 }
 
+.flow-arrow-toggle { cursor: pointer; }
+.flow-arrow-toggle-circle { fill: var(--surface-2); stroke: var(--accent); stroke-width: 1.5; }
+.flow-arrow-toggle-circle.active { fill: var(--accent); }
+.flow-arrow-toggle-icon {
+    font-size: 11px;
+    fill: var(--text-muted);
+    pointer-events: none;
+}
+.flow-arrow-toggle-circle.active ~ .flow-arrow-toggle-icon { fill: #fff; }
+
 .flow-edge-preview {
     stroke: var(--accent);
     stroke-width: 1.5;

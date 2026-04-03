@@ -6,5 +6,7 @@ public record FlowEdge(
     string ToNodeId,
     string? Label = null,
     string? FromPort = null,
-    string? ToPort = null
+    string? ToPort = null,
+    bool ArrowStart = false,
+    bool ArrowEnd = true
 );

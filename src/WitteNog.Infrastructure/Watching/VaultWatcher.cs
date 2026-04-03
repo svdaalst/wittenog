@@ -12,7 +12,7 @@ public class VaultWatcher : IDisposable
 
     public VaultWatcher(string vaultPath)
     {
-        _watcher = new FileSystemWatcher(vaultPath, "*.md")
+        _watcher = new FileSystemWatcher(vaultPath, "*")
         {
             IncludeSubdirectories = true,
             EnableRaisingEvents = true,
@@ -20,13 +20,25 @@ public class VaultWatcher : IDisposable
         };
 
         _watcher.Created += (_, e) =>
-            NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Created));
+        {
+            if (IsTrackedExtension(e.FullPath))
+                NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Created));
+        };
         _watcher.Changed += (_, e) =>
-            NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Modified));
+        {
+            if (IsTrackedExtension(e.FullPath))
+                NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Modified));
+        };
         _watcher.Deleted += (_, e) =>
-            NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Deleted));
+        {
+            if (IsTrackedExtension(e.FullPath))
+                NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Deleted));
+        };
         _watcher.Renamed += (_, e) =>
-            NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Modified));
+        {
+            if (IsTrackedExtension(e.FullPath))
+                NoteChanged?.Invoke(new NoteChangedEvent(e.FullPath, NoteChangeType.Modified));
+        };
 
         var metaDir = Path.Combine(vaultPath, ".metadata");
         if (Directory.Exists(metaDir))
@@ -44,5 +56,11 @@ public class VaultWatcher : IDisposable
     {
         _watcher.Dispose();
         _metaWatcher?.Dispose();
+    }
+
+    private static bool IsTrackedExtension(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return ext is ".md" or ".flow";
     }
 }

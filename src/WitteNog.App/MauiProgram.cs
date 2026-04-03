@@ -40,6 +40,10 @@ public static class MauiProgram
                 sp.GetRequiredService<NoteParser>()));
         builder.Services.AddSingleton<IMarkdownStorage>(sp =>
             (IMarkdownStorage)sp.GetRequiredService<INoteRepository>());
+        builder.Services.AddSingleton<IFlowRepository>(sp =>
+            new FlowRepository(
+                sp.GetRequiredService<IIoFileSystem>(),
+                sp.GetRequiredService<IWikiLinkParser>()));
         builder.Services.AddSingleton<JsonSettingsProvider>();
         builder.Services.AddSingleton<ILinkMetadataService>(sp =>
             sp.GetRequiredService<JsonSettingsProvider>());

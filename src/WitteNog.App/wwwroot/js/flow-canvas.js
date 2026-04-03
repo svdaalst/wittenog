@@ -212,18 +212,34 @@ window.FlowCanvasDelegate = {
 
         // Arrow marker def
         const defs = document.createElementNS(ns, 'defs');
-        const marker = document.createElementNS(ns, 'marker');
-        marker.setAttribute('id', `arrow-${id}`);
-        marker.setAttribute('markerWidth', '10');
-        marker.setAttribute('markerHeight', '7');
-        marker.setAttribute('refX', '9');
-        marker.setAttribute('refY', '3.5');
-        marker.setAttribute('orient', 'auto');
-        const poly = document.createElementNS(ns, 'polygon');
-        poly.setAttribute('points', '0 0, 10 3.5, 0 7');
-        poly.setAttribute('class', 'flow-arrow-head');
-        marker.appendChild(poly);
-        defs.appendChild(marker);
+        // End-arrow marker (points in path direction at end)
+        const markerEnd = document.createElementNS(ns, 'marker');
+        markerEnd.setAttribute('id', `arrow-end-${id}`);
+        markerEnd.setAttribute('markerWidth', '10');
+        markerEnd.setAttribute('markerHeight', '7');
+        markerEnd.setAttribute('refX', '9');
+        markerEnd.setAttribute('refY', '3.5');
+        markerEnd.setAttribute('orient', 'auto');
+        const polyEnd = document.createElementNS(ns, 'polygon');
+        polyEnd.setAttribute('points', '0 0, 10 3.5, 0 7');
+        polyEnd.setAttribute('class', 'flow-arrow-head');
+        markerEnd.appendChild(polyEnd);
+        defs.appendChild(markerEnd);
+
+        // Start-arrow marker (auto-start-reverse: same polygon, reversed at path start)
+        const markerStart = document.createElementNS(ns, 'marker');
+        markerStart.setAttribute('id', `arrow-start-${id}`);
+        markerStart.setAttribute('markerWidth', '10');
+        markerStart.setAttribute('markerHeight', '7');
+        markerStart.setAttribute('refX', '9');
+        markerStart.setAttribute('refY', '3.5');
+        markerStart.setAttribute('orient', 'auto-start-reverse');
+        const polyStart = document.createElementNS(ns, 'polygon');
+        polyStart.setAttribute('points', '0 0, 10 3.5, 0 7');
+        polyStart.setAttribute('class', 'flow-arrow-head');
+        markerStart.appendChild(polyStart);
+        defs.appendChild(markerStart);
+
         svg.appendChild(defs);
 
         // Edges
@@ -245,38 +261,49 @@ window.FlowCanvasDelegate = {
             hit.setAttribute('data-edge-id', edge.id);
             svg.appendChild(hit);
 
+            const arrowEnd   = edge.arrowEnd   !== false; // default true
+            const arrowStart = edge.arrowStart === true;   // default false
+
             const path = document.createElementNS(ns, 'path');
             path.setAttribute('d', d);
             path.setAttribute('class', 'flow-edge' + (isSelected ? ' selected' : ''));
-            path.setAttribute('marker-end', `url(#arrow-${id})`);
+            if (arrowEnd)   path.setAttribute('marker-end',   `url(#arrow-end-${id})`);
+            if (arrowStart) path.setAttribute('marker-start', `url(#arrow-start-${id})`);
             path.setAttribute('data-edge-id', edge.id);
             svg.appendChild(path);
 
+            const mid = this._edgeMidpoint(fromNode, fromPort, toNode, toPort);
+
             if (edge.label) {
-                const mid = this._edgeMidpoint(fromNode, fromPort, toNode, toPort);
                 const txt = document.createElementNS(ns, 'text');
                 txt.setAttribute('x', mid.x);
-                txt.setAttribute('y', mid.y - 8);
+                txt.setAttribute('y', mid.y - 14);
                 txt.setAttribute('text-anchor', 'middle');
                 txt.setAttribute('class', 'flow-edge-label');
                 txt.textContent = edge.label;
                 svg.appendChild(txt);
             }
 
-            // Delete button at edge midpoint — only shown when selected
+            // Controls visible only when selected: arrow toggles + delete button
             if (isSelected) {
-                const mid = this._edgeMidpoint(fromNode, fromPort, toNode, toPort);
+                const p1 = this._portPos(fromNode, fromPort);
+                const p2 = this._portPos(toNode, toPort);
+
+                // Arrow toggle at start port
+                svg.appendChild(this._makeArrowToggle(ns, p1, arrowStart, edge.id, 'start'));
+                // Arrow toggle at end port
+                svg.appendChild(this._makeArrowToggle(ns, p2, arrowEnd, edge.id, 'end'));
+
+                // Delete button at midpoint
                 const btnG = document.createElementNS(ns, 'g');
                 btnG.setAttribute('data-delete-edge', edge.id);
                 btnG.setAttribute('class', 'flow-edge-delete-btn');
-
                 const circle = document.createElementNS(ns, 'circle');
                 circle.setAttribute('cx', mid.x);
                 circle.setAttribute('cy', mid.y);
                 circle.setAttribute('r', '10');
                 circle.setAttribute('class', 'flow-edge-delete-circle');
                 btnG.appendChild(circle);
-
                 const cross = document.createElementNS(ns, 'text');
                 cross.setAttribute('x', mid.x);
                 cross.setAttribute('y', mid.y);
@@ -285,7 +312,6 @@ window.FlowCanvasDelegate = {
                 cross.setAttribute('class', 'flow-edge-delete-x');
                 cross.textContent = '×';
                 btnG.appendChild(cross);
-
                 svg.appendChild(btnG);
             }
         }
@@ -403,6 +429,31 @@ window.FlowCanvasDelegate = {
         return `M ${p1.x} ${p1.y} C ${p1.x + d1.x * off} ${p1.y + d1.y * off} ${p2.x + d2.x * off} ${p2.y + d2.y * off} ${p2.x} ${p2.y}`;
     },
 
+    _makeArrowToggle(ns, pos, active, edgeId, which) {
+        const g = document.createElementNS(ns, 'g');
+        g.setAttribute('data-toggle-arrow', which);
+        g.setAttribute('data-edge-id', edgeId);
+        g.setAttribute('class', 'flow-arrow-toggle');
+
+        const circle = document.createElementNS(ns, 'circle');
+        circle.setAttribute('cx', pos.x);
+        circle.setAttribute('cy', pos.y);
+        circle.setAttribute('r', '9');
+        circle.setAttribute('class', 'flow-arrow-toggle-circle' + (active ? ' active' : ''));
+        g.appendChild(circle);
+
+        const icon = document.createElementNS(ns, 'text');
+        icon.setAttribute('x', pos.x);
+        icon.setAttribute('y', pos.y);
+        icon.setAttribute('text-anchor', 'middle');
+        icon.setAttribute('dominant-baseline', 'central');
+        icon.setAttribute('class', 'flow-arrow-toggle-icon');
+        icon.textContent = active ? '▸' : '—';
+        g.appendChild(icon);
+
+        return g;
+    },
+
     _edgeMidpoint(fromNode, fromPort, toNode, toPort) {
         const p1 = this._portPos(fromNode, fromPort);
         const p2 = this._portPos(toNode, toPort);
@@ -472,6 +523,21 @@ window.FlowCanvasDelegate = {
         const DRAG_THRESHOLD = 5; // px — movement beyond this commits to a drag
 
         svg.addEventListener('mousedown', e => {
+            // Arrow toggle buttons on selected edge
+            const toggleBtn = e.target.closest('[data-toggle-arrow]');
+            if (toggleBtn) {
+                e.stopPropagation();
+                const edgeId = toggleBtn.dataset.edgeId;
+                const which  = toggleBtn.dataset.toggleArrow; // 'start' or 'end'
+                const edge = inst.state.edges.find(ed => ed.id === edgeId);
+                if (edge) {
+                    if (which === 'start') edge.arrowStart = !(edge.arrowStart === true);
+                    else                   edge.arrowEnd   = !(edge.arrowEnd   !== false);
+                    self._render(id);
+                }
+                return;
+            }
+
             // Delete button on selected edge
             const delBtn = e.target.closest('[data-delete-edge]');
             if (delBtn) {
@@ -640,7 +706,7 @@ window.FlowCanvasDelegate = {
         // Prevent duplicate edges between the same nodes
         const exists = inst.state.edges.some(e => e.fromNodeId === fromId && e.toNodeId === toId);
         if (exists) return;
-        inst.state.edges.push({ id: 'e' + Date.now(), fromNodeId: fromId, fromPort, toNodeId: toId, toPort, label: null });
+        inst.state.edges.push({ id: 'e' + Date.now(), fromNodeId: fromId, fromPort, toNodeId: toId, toPort, label: null, arrowStart: false, arrowEnd: true });
         this._render(id);
     },
 

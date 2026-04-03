@@ -257,7 +257,7 @@ window.FlowCanvasDelegate = {
             hit.setAttribute('d', d);
             hit.setAttribute('fill', 'none');
             hit.setAttribute('stroke', 'transparent');
-            hit.setAttribute('stroke-width', '14');
+            hit.setAttribute('stroke-width', '24');
             hit.setAttribute('data-edge-id', edge.id);
             svg.appendChild(hit);
 
@@ -301,7 +301,7 @@ window.FlowCanvasDelegate = {
                 const circle = document.createElementNS(ns, 'circle');
                 circle.setAttribute('cx', mid.x);
                 circle.setAttribute('cy', mid.y);
-                circle.setAttribute('r', '10');
+                circle.setAttribute('r', '14');
                 circle.setAttribute('class', 'flow-edge-delete-circle');
                 btnG.appendChild(circle);
                 const cross = document.createElementNS(ns, 'text');
@@ -360,7 +360,7 @@ window.FlowCanvasDelegate = {
                 const handle = document.createElementNS(ns, 'circle');
                 handle.setAttribute('cx', pp.x);
                 handle.setAttribute('cy', pp.y);
-                handle.setAttribute('r', '5');
+                handle.setAttribute('r', '8');
                 handle.setAttribute('class', 'flow-connect-handle');
                 handle.setAttribute('data-connect-from', node.id);
                 handle.setAttribute('data-connect-port', port);
@@ -438,7 +438,7 @@ window.FlowCanvasDelegate = {
         const circle = document.createElementNS(ns, 'circle');
         circle.setAttribute('cx', pos.x);
         circle.setAttribute('cy', pos.y);
-        circle.setAttribute('r', '9');
+        circle.setAttribute('r', '14');
         circle.setAttribute('class', 'flow-arrow-toggle-circle' + (active ? ' active' : ''));
         g.appendChild(circle);
 

@@ -1,0 +1,131 @@
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@using MediatR
+@using System.Text.Json
+@using WitteNog.Application.Commands
+@using WitteNog.Core.Models
+
+<div class="flow-canvas-overlay" @ref="_overlay">
+    <div class="flow-canvas-toolbar">
+        <span class="flow-canvas-title">@(string.IsNullOrWhiteSpace(Diagram.Title) ? "Diagram" : Diagram.Title)</span>
+        <div class="flow-canvas-toolbar-actions">
+            <button data-action="add-node" title="Node toevoegen">+ Node</button>
+            <button data-action="toggle-connect" title="Verbinding tekenen">↔ Verbinden</button>
+            <button data-action="save-canvas" title="Opslaan">💾 Opslaan</button>
+            <button data-action="close-canvas" title="Sluiten">✕ Sluiten</button>
+        </div>
+    </div>
+    <svg id="@_svgId" class="flow-canvas-svg" @ref="_svgEl"></svg>
+</div>
+
+@code {
+    [Parameter] public FlowDiagram Diagram { get; set; } = null!;
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private readonly string _svgId = $"fc-{Guid.NewGuid():N}";
+    private ElementReference _svgEl;
+    private ElementReference _overlay;
+    private DotNetObjectReference<FlowCanvas>? _dotNetRef;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            _dotNetRef = DotNetObjectReference.Create(this);
+            var dto = BuildDto(Diagram);
+            var json = JsonSerializer.Serialize(dto, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+            await JS.InvokeVoidAsync("FlowCanvasDelegate.attach", _svgEl, _overlay, _dotNetRef, json);
+        }
+    }
+
+    [JSInvokable]
+    public async Task SaveDiagram(string diagramJson)
+    {
+        try
+        {
+            var dto = JsonSerializer.Deserialize<CanvasStateDto>(diagramJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (dto == null) return;
+
+            var nodes = (dto.Nodes ?? Array.Empty<CanvasNodeDto>()).Select(n => new FlowNode(
+                n.Id, n.X, n.Y, n.Width, n.Height, n.Text,
+                ParseShape(n.Shape))).ToList();
+            var edges = (dto.Edges ?? Array.Empty<CanvasEdgeDto>()).Select(e => new FlowEdge(
+                e.Id, e.FromNodeId, e.ToNodeId, e.Label, e.FromPort, e.ToPort, e.ArrowStart, e.ArrowEnd)).ToList();
+
+            var updated = Diagram with
+            {
+                Nodes = nodes,
+                Edges = edges,
+                LastModified = DateTimeOffset.UtcNow
+            };
+
+            await Mediator.Send(new SaveFlowCommand(updated));
+            await OnSaved.InvokeAsync();
+        }
+        catch
+        {
+            // Swallow serialisation errors — the canvas remains open
+        }
+    }
+
+    [JSInvokable]
+    public async Task CloseCanvas()
+        => await OnClose.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try { await JS.InvokeVoidAsync("FlowCanvasDelegate.detach", _svgId); }
+            catch { /* ignore JS errors on disposal */ }
+        }
+        _dotNetRef?.Dispose();
+    }
+
+    private static object BuildDto(FlowDiagram d) => new
+    {
+        nodes = d.Nodes.Select(n => new
+        {
+            id = n.Id,
+            x = n.X,
+            y = n.Y,
+            width = n.Width,
+            height = n.Height,
+            text = n.Text,
+            shape = n.Shape.ToString().ToLowerInvariant()
+        }),
+        edges = d.Edges.Select(e => new
+        {
+            id = e.Id,
+            fromNodeId = e.FromNodeId,
+            toNodeId = e.ToNodeId,
+            label = e.Label,
+            fromPort = e.FromPort,
+            toPort = e.ToPort,
+            arrowStart = e.ArrowStart,
+            arrowEnd = e.ArrowEnd
+        })
+    };
+
+    private static NodeShape ParseShape(string? s) => s?.ToLowerInvariant() switch
+    {
+        "diamond" => NodeShape.Diamond,
+        "ellipse" => NodeShape.Ellipse,
+        _ => NodeShape.Rect
+    };
+
+    private record CanvasStateDto(CanvasNodeDto[] Nodes, CanvasEdgeDto[] Edges);
+    private record CanvasNodeDto(string Id, double X, double Y, double Width, double Height, string Text, string Shape);
+    private record CanvasEdgeDto(string Id, string FromNodeId, string ToNodeId, string? Label, string? FromPort = null, string? ToPort = null, bool ArrowStart = false, bool ArrowEnd = true);
+}

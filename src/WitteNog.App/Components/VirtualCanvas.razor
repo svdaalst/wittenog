@@ -9,6 +9,7 @@
 @using WitteNog.App.Pages
 @using WitteNog.App.Services
 @using WitteNog.Application.Commands
+@using WitteNog.Application.Models
 @using WitteNog.Application.Queries
 @using WitteNog.Core.Events
 @using WitteNog.Core.Interfaces
@@ -35,6 +36,7 @@ else
                 @(_allCollapsed ? "▸▸ Uitklappen" : "▾▾ Inklappen")
             </button>
             <NewNoteButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnNoteCreated="RefreshAsync" />
+            <NewFlowButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnFlowCreated="RefreshAsync" />
         </div>
     </div>
 
@@ -42,21 +44,30 @@ else
     {
         <p class="error-state">Fout: @_error</p>
     }
-    else if (_notes == null)
+    else if (_blocks == null)
     {
         <p class="loading">Laden...</p>
     }
-    else if (!_notes.Any())
+    else if (!_blocks.Any())
     {
         <p class="empty-state">Geen notities voor @Tab.Query. Maak er een aan met "+ Nieuw".</p>
     }
     else
     {
-        @foreach (var note in _notes)
+        @foreach (var block in _blocks)
         {
-            <div id="note-@note.Id">
-                <NoteBlock Note="@note" VaultPath="@VaultPath" TabQuery="@Tab.Query" OnSaved="RefreshAsync" />
-            </div>
+            @if (block.IsNote)
+            {
+                <div id="note-@block.Note!.Id">
+                    <NoteBlock Note="@block.Note" VaultPath="@VaultPath" TabQuery="@Tab.Query" OnSaved="RefreshAsync" />
+                </div>
+            }
+            else
+            {
+                <div id="flow-@SanitizeId(block.Flow!.Id)">
+                    <FlowBlock Flow="@block.Flow" VaultPath="@VaultPath" OnSaved="RefreshAsync" />
+                </div>
+            }
         }
     }
 </div>
@@ -66,7 +77,7 @@ else
     [Parameter] public string VaultPath { get; set; } = string.Empty;
     [Parameter] public TabViewModel Tab { get; set; } = null!;
 
-    private IReadOnlyList<AtomicNote>? _notes;
+    private IReadOnlyList<VaultBlock>? _blocks;
     private bool _isArchived;
     private string? _error;
     private ElementReference _canvasEl;
@@ -96,12 +107,23 @@ else
         try
         {
             _error = null;
-            _notes = Tab.Type == TabType.DailyPage
-                ? await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query))
-                : await Mediator.Send(new GetNotesForTopicQuery(VaultPath, Tab.Query));
 
-            if (Tab.Type == TabType.DailyPage && !_notes.Any(n => n.Id == Tab.Query))
+            var notesTask = Tab.Type == TabType.DailyPage
+                ? Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query))
+                : Mediator.Send(new GetNotesForTopicQuery(VaultPath, Tab.Query));
+            var flowsTask = Tab.Type == TabType.DailyPage
+                ? Mediator.Send(new GetFlowsForDateQuery(VaultPath, Tab.Query))
+                : Mediator.Send(new GetFlowsForTopicQuery(VaultPath, Tab.Query));
+
+            await Task.WhenAll(notesTask, flowsTask);
+            var notes = notesTask.Result;
+            var flows = flowsTask.Result;
+
+            // Auto-create placeholder note for daily pages
+            if (Tab.Type == TabType.DailyPage && !notes.Any(n => n.Id == Tab.Query))
             {
+                await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, $"[[{Tab.Query}]]"));
+                notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
                 var template = VaultSettings.GetDailyTemplate(VaultPath);
                 var initialContent = string.IsNullOrWhiteSpace(template)
                     ? $"[[{Tab.Query}]]"
@@ -109,6 +131,18 @@ else
                 await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, initialContent));
                 _notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
             }
+
+            // Definition note stays first; remaining notes + flows sorted by LastModified descending
+            var defNote = notes.FirstOrDefault(n => n.Content.Trim() == $"[[{Tab.Query}]]");
+            var remaining = notes
+                .Where(n => n != defNote)
+                .Select(VaultBlock.FromNote)
+                .Concat(flows.Select(VaultBlock.FromFlow))
+                .OrderByDescending(b => b.LastModified);
+
+            _blocks = defNote is not null
+                ? new[] { VaultBlock.FromNote(defNote) }.Concat(remaining).ToList()
+                : remaining.ToList();
         }
         catch (Exception ex)
         {
@@ -141,6 +175,9 @@ else
                    && MetadataService.IsArchived(VaultPath, Tab.Query);
         InvokeAsync(StateHasChanged);
     }
+
+    private static string SanitizeId(string id) =>
+        System.Text.RegularExpressions.Regex.Replace(id, @"[^\w\-]", "_");
 
     public void Dispose()
     {

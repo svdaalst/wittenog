@@ -9,7 +9,12 @@ window.OnboardingDelegate = {
     attach(element, dotNetRef) {
         element.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
-            if (btn) dotNetRef.invokeMethodAsync('HandleAction', btn.dataset.action);
+            if (!btn) return;
+            // If the click bubbled up from inside a .modal box to a parent with
+            // data-action (the backdrop overlay has data-action="cancel"), ignore it.
+            // Only a direct click on the backdrop itself should close the modal.
+            if (btn !== e.target && e.target.closest('.modal')) return;
+            dotNetRef.invokeMethodAsync('HandleAction', btn.dataset.action);
         });
     }
 };

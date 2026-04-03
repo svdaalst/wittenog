@@ -1,0 +1,173 @@
+@inject ITaskCache TaskCache
+@inject INavigationService NavService
+@inject VaultWatcherService Watcher
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@implements IDisposable
+@using MediatR
+@using System.Text.RegularExpressions
+@using WitteNog.App.Models
+@using WitteNog.App.Services
+@using WitteNog.Application.Commands
+@using WitteNog.Core.Events
+@using WitteNog.Core.Interfaces
+@using WitteNog.Core.Models
+@using Microsoft.JSInterop
+
+@if (_groups != null && _groups.Any(g => g.Tasks.Count > 0))
+{
+    <div class="sidebar-task-panel" @ref="_container">
+        <div class="sidebar-task-panel-header">
+            <span class="sidebar-task-panel-title">Taken</span>
+            <span class="sidebar-task-panel-badge">@_totalCount</span>
+        </div>
+        <div class="sidebar-task-list">
+            @foreach (var grp in _groups.Where(g => g.Tasks.Count > 0))
+            {
+                <div class="sidebar-task-group">
+                    <button class="sidebar-task-group-header"
+                            data-action="toggle-@grp.PriorityKey">
+                        <span class="sidebar-task-toggle">@(_collapsed.Contains(grp.PriorityKey) ? "▸" : "▾")</span>
+                        <span class="sidebar-priority-dot sidebar-priority-dot--@grp.PriorityKey"></span>
+                        <span class="sidebar-task-group-label">@grp.Label</span>
+                        <span class="sidebar-task-group-count">@grp.Tasks.Count</span>
+                    </button>
+                    @if (!_collapsed.Contains(grp.PriorityKey))
+                    {
+                        <ul class="sidebar-task-items">
+                            @foreach (var task in grp.Tasks)
+                            {
+                                <li class="sidebar-task-item">
+                                    <button class="sidebar-task-complete"
+                                            title="Markeer als voltooid"
+                                            data-action="complete"
+                                            data-taskid="@task.Id">☐</button>
+                                    <button class="sidebar-task-desc"
+                                            title="@task.Description"
+                                            data-action="open"
+                                            data-wikilink="@(task.SourceFirstWikiLink ?? Path.GetFileNameWithoutExtension(task.FilePath))">@task.Description</button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+
+    private static readonly Regex DateRegex = new(@"^\d{4}-\d{2}-\d{2}$", RegexOptions.Compiled);
+
+    private record PriorityGroup(string PriorityKey, string Label, List<TaskItem> Tasks);
+
+    private List<PriorityGroup>? _groups;
+    private int _totalCount;
+    private readonly HashSet<string> _collapsed = [];
+    private ElementReference _container;
+    private DotNetObjectReference<SidebarTaskPanel>? _dotNetRef;
+    private bool _panelRendered;
+
+    protected override void OnInitialized()
+    {
+        _dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.NoteChanged += OnExternalChange;
+        Watcher.MetadataChanged -= OnExternalMetadataChange;
+        Watcher.MetadataChanged += OnExternalMetadataChange;
+        Refresh();
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var hasContent = _groups?.Any(g => g.Tasks.Count > 0) == true;
+        if (hasContent && !_panelRendered)
+        {
+            _panelRendered = true;
+            await JS.InvokeVoidAsync("TaskDelegate.attach", _container, _dotNetRef);
+        }
+        else if (!hasContent && _panelRendered)
+        {
+            _panelRendered = false;
+        }
+    }
+
+    private void Refresh()
+    {
+        if (string.IsNullOrEmpty(VaultPath)) return;
+        var tasks = TaskCache.GetTasks(VaultPath);
+        _groups =
+        [
+            new("p1",   "P1 Hoog", tasks.Where(t => t.Priority == 1).ToList()),
+            new("p2",   "P2",      tasks.Where(t => t.Priority == 2).ToList()),
+            new("p3",   "P3",      tasks.Where(t => t.Priority == 3).ToList()),
+            new("p4",   "P4",      tasks.Where(t => t.Priority == 4).ToList()),
+            new("p5",   "P5 Laag", tasks.Where(t => t.Priority == 5).ToList()),
+            new("none", "—",       tasks.Where(t => t.Priority == null).ToList()),
+        ];
+        _totalCount = tasks.Count;
+    }
+
+    private Task RefreshAsync()
+    {
+        Refresh();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public async Task HandleAction(string action, string data)
+    {
+        if (action.StartsWith("toggle-"))
+        {
+            var key = action["toggle-".Length..];
+            if (!_collapsed.Add(key))
+                _collapsed.Remove(key);
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (action == "complete")
+        {
+            await CompleteTask(data);
+        }
+        else if (action == "open")
+        {
+            OpenNote(data);
+        }
+    }
+
+    private async Task CompleteTask(string taskId)
+    {
+        if (string.IsNullOrEmpty(VaultPath) || string.IsNullOrEmpty(taskId)) return;
+        try
+        {
+            await Mediator.Send(new CompleteTaskCommand(VaultPath, taskId));
+        }
+        catch { /* best effort — errors surface in TaskDashboard */ }
+        Refresh();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenNote(string wikiLink)
+    {
+        if (string.IsNullOrEmpty(wikiLink)) return;
+        var type = DateRegex.IsMatch(wikiLink) ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, wikiLink);
+    }
+
+    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
+    private void OnExternalMetadataChange() => InvokeAsync(RefreshAsync);
+
+    public void Dispose()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.MetadataChanged -= OnExternalMetadataChange;
+        _dotNetRef?.Dispose();
+    }
+}

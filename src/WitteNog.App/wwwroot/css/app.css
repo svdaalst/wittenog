@@ -1639,7 +1639,7 @@ html, body {
 .flow-arrow-toggle-circle { fill: var(--surface-2); stroke: var(--accent); stroke-width: 1.5; }
 .flow-arrow-toggle-circle.active { fill: var(--accent); }
 .flow-arrow-toggle-icon {
-    font-size: 11px;
+    font-size: 14px;
     fill: var(--text-muted);
     pointer-events: none;
 }

@@ -12,7 +12,7 @@
             <p>Je notities worden opgeslagen in de <strong>Documenten-map</strong> op je toestel,
                zichtbaar via de Bestanden-app. Je kunt ook een andere map kiezen.</p>
             <code class="settings-path" style="display:block;margin-bottom:12px;word-break:break-all">@_path</code>
-            <button class="btn-secondary" style="margin-bottom:12px" @onclick="PickAndroidFolder">
+            <button class="btn-secondary" style="margin-bottom:12px" data-action="pick-folder">
                 Andere map kiezen
             </button>
             <br />
@@ -73,6 +73,8 @@
     {
         if (action == "confirm")
             await ConfirmPath();
+        else if (action == "pick-folder")
+            await PickAndroidFolder();
     }
 
     private async Task PickAndroidFolder()

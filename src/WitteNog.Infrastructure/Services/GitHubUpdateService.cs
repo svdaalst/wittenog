@@ -111,7 +111,10 @@ public class GitHubUpdateService : IUpdateService
 
     private static bool IsNewer(string latest, string current)
     {
-        if (!Version.TryParse(latest, out var l) || !Version.TryParse(current, out var c))
+        // Normalize to 3 components (major.minor.build) so GitHub tags ("0.1.5")
+        // compare cleanly against Windows 4-part version strings ("0.1.3.4").
+        static string Trim3(string v) => string.Join('.', v.Split('.').Take(3));
+        if (!Version.TryParse(Trim3(latest), out var l) || !Version.TryParse(Trim3(current), out var c))
             return false;
         return l > c;
     }

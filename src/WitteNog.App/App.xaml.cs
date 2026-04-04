@@ -12,7 +12,7 @@ public partial class App : Microsoft.Maui.Controls.Application
     {
         return new Microsoft.Maui.Controls.Window(new MainPage())
         {
-            Title = $"Witte nog? v{Microsoft.Maui.ApplicationModel.AppInfo.VersionString}"
+            Title = "Witte nog?"
         };
     }
 }

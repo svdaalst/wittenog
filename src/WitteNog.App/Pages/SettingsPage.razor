@@ -167,7 +167,7 @@
 
                     <div class="settings-row">
                         <span class="settings-label">Versie:</span>
-                        <span>@Microsoft.Maui.ApplicationModel.AppInfo.VersionString</span>
+                        <span>@string.Join('.', Microsoft.Maui.ApplicationModel.AppInfo.VersionString.Split('.').Take(3))</span>
                     </div>
 
                     @if (!OperatingSystem.IsAndroid())

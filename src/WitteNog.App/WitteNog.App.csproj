@@ -28,11 +28,11 @@
         <ApplicationId>com.companyname.wittenog.app</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>0.2.0</ApplicationDisplayVersion>
+        <ApplicationDisplayVersion>0.2.1</ApplicationDisplayVersion>
         <ApplicationVersion>0</ApplicationVersion>
-        <Version>0.2.0</Version>
-        <FileVersion>0.2.0.0</FileVersion>
-        <AssemblyVersion>0.2.0.0</AssemblyVersion>
+        <Version>0.2.1</Version>
+        <FileVersion>0.2.1.0</FileVersion>
+        <AssemblyVersion>0.2.1.0</AssemblyVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>

@@ -170,32 +170,35 @@
                         <span>@Microsoft.Maui.ApplicationModel.AppInfo.VersionString</span>
                     </div>
 
-                    <div class="settings-actions">
-                        <button class="btn-secondary" data-action="check-update" disabled="@_checkingUpdate">
-                            @(_checkingUpdate ? "Bezig…" : "Controleer op updates")
-                        </button>
-                    </div>
-
-                    @if (_updateMessage != null)
-                    {
-                        <p class="@(_updateAvailableVersion != null ? "settings-success" : "settings-error")">
-                            @_updateMessage
-                        </p>
-                    }
-                    @if (_updateAvailableVersion != null)
+                    @if (!OperatingSystem.IsAndroid())
                     {
                         <div class="settings-actions">
-                            @if (_updating)
-                            {
-                                <span>Bijwerken… @_updateProgress%</span>
-                            }
-                            else
-                            {
-                                <button class="btn-primary" data-action="apply-update">
-                                    Bijwerken naar v@_updateAvailableVersion
-                                </button>
-                            }
+                            <button class="btn-secondary" data-action="check-update" disabled="@_checkingUpdate">
+                                @(_checkingUpdate ? "Bezig…" : "Controleer op updates")
+                            </button>
                         </div>
+
+                        @if (_updateMessage != null)
+                        {
+                            <p class="@(_updateAvailableVersion != null ? "settings-success" : "settings-error")">
+                                @_updateMessage
+                            </p>
+                        }
+                        @if (_updateAvailableVersion != null)
+                        {
+                            <div class="settings-actions">
+                                @if (_updating)
+                                {
+                                    <span>Bijwerken… @_updateProgress%</span>
+                                }
+                                else
+                                {
+                                    <button class="btn-primary" data-action="apply-update">
+                                        Bijwerken naar v@_updateAvailableVersion
+                                    </button>
+                                }
+                            </div>
+                        }
                     }
                 }
 
@@ -244,9 +247,9 @@
         if (VaultContext.VaultPath is null) return;
         var ts = VaultSettings.GetTranscriptionSettings(VaultContext.VaultPath);
         _transcriptionModel = ts.Model;
-        // On Android, large models are impractical — cap at Base
-        if (OperatingSystem.IsAndroid() && _transcriptionModel is "Small" or "Medium" or "Large")
-            _transcriptionModel = "Base";
+        // On Android, large models are impractical — cap at Tiny
+        if (OperatingSystem.IsAndroid() && _transcriptionModel is "Base" or "Small" or "Medium" or "Large")
+            _transcriptionModel = "Tiny";
         _languages = [..ts.Languages];
         _languageToAdd = _addableLanguages.FirstOrDefault().Code ?? string.Empty;
     }

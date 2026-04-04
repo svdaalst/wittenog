@@ -9,11 +9,11 @@
         <h1>Welkom bij WitteNog</h1>
         @if (OperatingSystem.IsAndroid())
         {
-            <p>Je notities worden opgeslagen in app-opslag. Je kunt een externe map kiezen
-               om van te importeren, of direct starten met de standaardlocatie.</p>
+            <p>Je notities worden opgeslagen in de <strong>Documenten-map</strong> op je toestel,
+               zichtbaar via de Bestanden-app. Je kunt ook een andere map kiezen.</p>
             <code class="settings-path" style="display:block;margin-bottom:12px;word-break:break-all">@_path</code>
             <button class="btn-secondary" style="margin-bottom:12px" @onclick="PickAndroidFolder">
-                Kies externe map
+                Andere map kiezen
             </button>
             <br />
         }
@@ -46,7 +46,14 @@
     protected override void OnInitialized()
     {
         if (OperatingSystem.IsAndroid())
-            _path = Path.Combine(FileSystem.AppDataDirectory, "vault");
+#if ANDROID
+            _path = System.IO.Path.Combine(
+                Android.OS.Environment.GetExternalStoragePublicDirectory(
+                    Android.OS.Environment.DirectoryDocuments)!.AbsolutePath,
+                "WitteNog");
+#else
+            _path = System.IO.Path.Combine(FileSystem.AppDataDirectory, "vault");
+#endif
         else
             _path = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments)
                     + System.IO.Path.DirectorySeparatorChar + "WitteNog";
@@ -92,6 +99,37 @@
             trimmed = typed.Trim();
         }
         if (string.IsNullOrEmpty(trimmed)) return;
+
+#if ANDROID
+        if (OperatingSystem.IsAndroid())
+        {
+            if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.R)
+            {
+                if (!Android.OS.Environment.IsExternalStorageManager)
+                {
+                    var intent = new Android.Content.Intent(
+                        Android.Provider.Settings.ActionManageAppAllFilesAccessPermission,
+                        Android.Net.Uri.Parse("package:" + Microsoft.Maui.ApplicationModel.AppInfo.PackageName));
+                    Android.App.Application.Context.StartActivity(
+                        intent.AddFlags(Android.Content.ActivityFlags.NewTask));
+                    _error = "Verleen opslagtoegang in Instellingen en tik daarna op Bevestigen.";
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+            }
+            else
+            {
+                var status = await Permissions.RequestAsync<Permissions.StorageWrite>();
+                if (status != PermissionStatus.Granted)
+                {
+                    _error = "Opslagtoegang geweigerd. Geef toestemming om door te gaan.";
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+            }
+        }
+#endif
+
         try
         {
             System.IO.Directory.CreateDirectory(trimmed);

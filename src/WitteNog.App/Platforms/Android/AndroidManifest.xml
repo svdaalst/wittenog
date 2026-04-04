@@ -6,4 +6,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- READ_EXTERNAL_STORAGE only needed on Android 12 and below; SAF handles Android 13+ -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- MANAGE_EXTERNAL_STORAGE: allows reading/writing shared Documents folder on Android 11+ -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 </manifest>

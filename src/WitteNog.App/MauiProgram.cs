@@ -57,13 +57,21 @@ public static class MauiProgram
 #if ANDROID
         builder.Services.AddSingleton<IAudioRecorder, AndroidAudioRecorderService>();
         var whisperModelDir = Path.Combine(FileSystem.AppDataDirectory, "whisper-models");
+        builder.Services.AddSingleton<BackButtonService>();
 #else
         builder.Services.AddSingleton<IAudioRecorder, AudioRecorderService>();
         var whisperModelDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "WitteNog", "models");
 #endif
-        builder.Services.AddSingleton<ITranscriptionService>(_ => new WhisperTranscriptionService(whisperModelDir));
+        builder.Services.AddSingleton<ITranscriptionService>(_ =>
+        {
+            var svc = new WhisperTranscriptionService(whisperModelDir);
+#if ANDROID
+            svc.ConfiguredModel = "Tiny";
+#endif
+            return svc;
+        });
         builder.Services.AddSingleton<RecordingWorkflowService>();
 
         // Application (MediatR)

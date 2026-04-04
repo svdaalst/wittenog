@@ -23,10 +23,16 @@ public class FolderPickerService
         if (!result.IsSuccessful) return null;
 
         var path = result.Folder.Path;
-        // Android SAF returns a content:// URI for external storage which System.IO cannot use.
-        // Fall back to app-private storage so all existing file I/O works unchanged.
+        // Android SAF may return a content:// URI; try to resolve it to a real file path.
         if (path.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
-            return Path.Combine(FileSystem.AppDataDirectory, "vault");
+        {
+            var resolved = TryResolveContentUri(path);
+            if (resolved is not null)
+                return resolved;
+
+            // Resolution failed — use app-specific external storage (visible in Settings > Apps).
+            return Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath + "/vault";
+        }
 
         return path;
 #else
@@ -34,4 +40,36 @@ public class FolderPickerService
         return result.IsSuccessful ? result.Folder.Path : null;
 #endif
     }
+
+#if ANDROID
+    /// <summary>
+    /// Attempts to resolve an Android SAF content:// URI to a real filesystem path.
+    /// Works for the primary volume (internal storage). Returns null for SD cards or
+    /// any URI that cannot be mapped to a path accessible via System.IO.
+    /// </summary>
+    private static string? TryResolveContentUri(string contentUri)
+    {
+        try
+        {
+            var uri = Android.Net.Uri.Parse(contentUri)!;
+            var docId = Android.Provider.DocumentsContract.GetTreeDocumentId(uri);
+            if (docId is null) return null;
+
+            // Primary volume pattern: "primary:Documents/Foo" → /storage/emulated/0/Documents/Foo
+            var parts = docId.Split(':', 2);
+            if (parts.Length == 2 && parts[0].Equals("primary", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.Combine(
+                    Android.OS.Environment.ExternalStorageDirectory!.AbsolutePath,
+                    parts[1].Replace('/', Path.DirectorySeparatorChar));
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+#endif
 }

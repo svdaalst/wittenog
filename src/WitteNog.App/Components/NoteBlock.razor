@@ -110,8 +110,15 @@
         switch (action)
         {
             case "complete-inline":
-                await Mediator.Send(new CompleteTaskCommand(VaultPath, taskId));
-                await OnSaved.InvokeAsync();
+                try
+                {
+                    await Mediator.Send(new CompleteTaskCommand(VaultPath, taskId));
+                    await OnSaved.InvokeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Taak voltooien mislukt: {ex.Message}");
+                }
                 return;
             case "edit":
                 if (!_editing)

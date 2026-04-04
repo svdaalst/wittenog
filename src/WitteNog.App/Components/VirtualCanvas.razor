@@ -129,7 +129,7 @@ else
                     ? $"[[{Tab.Query}]]"
                     : $"[[{Tab.Query}]]\n\n{template}";
                 await Mediator.Send(new CreateNoteCommand(VaultPath, Tab.Query, initialContent));
-                _notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
+                notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
             }
 
             // Definition note stays first; remaining notes + flows sorted by LastModified descending

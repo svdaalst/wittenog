@@ -2,6 +2,9 @@ namespace WitteNog.App;
 
 using Android.Media;
 using WitteNog.Core.Interfaces;
+using SysStream = System.IO.Stream;
+using SysBinaryWriter = System.IO.BinaryWriter;
+using SysFileStream = System.IO.FileStream;
 
 /// <summary>
 /// Android microphone recorder. Captures 16 kHz mono 16-bit PCM and writes a WAV file.
@@ -61,7 +64,7 @@ internal sealed class AndroidAudioRecorderService : IAudioRecorder
     {
         var pcmBuffer = new byte[bufferSize * 2];
 
-        using var fs = new FileStream(outputPath, FileMode.Create, FileAccess.ReadWrite);
+        using var fs = new SysFileStream(outputPath, System.IO.FileMode.Create, System.IO.FileAccess.ReadWrite);
         WriteWavHeader(fs, 0);
         long dataSize = 0;
 
@@ -80,15 +83,15 @@ internal sealed class AndroidAudioRecorderService : IAudioRecorder
         }
 
         // Patch WAV header with actual data sizes
-        fs.Seek(4, SeekOrigin.Begin);
-        using var w = new BinaryWriter(fs, System.Text.Encoding.ASCII, leaveOpen: true);
+        fs.Seek(4, System.IO.SeekOrigin.Begin);
+        using var w = new SysBinaryWriter(fs, System.Text.Encoding.ASCII, leaveOpen: true);
         w.Write((int)(36 + dataSize));  // RIFF chunk size
-        fs.Seek(40, SeekOrigin.Begin);
+        fs.Seek(40, System.IO.SeekOrigin.Begin);
         w.Write((int)dataSize);         // data chunk size
     }
 
     /// <summary>Writes a 44-byte WAV header. Call with dataSize=0 initially; patch later.</summary>
-    private static void WriteWavHeader(Stream s, int dataSize)
+    private static void WriteWavHeader(SysStream s, int dataSize)
     {
         const int sampleRate = SampleRate;
         const short channels = 1;
@@ -96,7 +99,7 @@ internal sealed class AndroidAudioRecorderService : IAudioRecorder
         int byteRate = sampleRate * channels * bitsPerSample / 8;
         short blockAlign = (short)(channels * bitsPerSample / 8);
 
-        using var w = new BinaryWriter(s, System.Text.Encoding.ASCII, leaveOpen: true);
+        using var w = new SysBinaryWriter(s, System.Text.Encoding.ASCII, leaveOpen: true);
         w.Write("RIFF"u8.ToArray());
         w.Write(36 + dataSize);
         w.Write("WAVE"u8.ToArray());

@@ -17,4 +17,13 @@ public class MainActivity : MauiAppCompatActivity
             .GetService<VaultWatcherService>()
             ?.TriggerManualRefresh();
     }
+
+    public override void OnBackPressed()
+    {
+        var svc = IPlatformApplication.Current?.Services.GetService<BackButtonService>();
+        if (svc?.RaiseBackPressed() == true) return;
+#pragma warning disable CS0612 // OnBackPressed is obsolete on API 33+ but still functional in MAUI 9
+        base.OnBackPressed();
+#pragma warning restore CS0612
+    }
 }

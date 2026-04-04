@@ -862,7 +862,7 @@ html, body {
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
 
 /* ============================================================
-   iOS safe area
+   iOS / Android safe area
    ============================================================ */
 .status-bar-safe-area { display: none; }
 
@@ -875,6 +875,14 @@ html, body {
         background: var(--bg);
         width: 100%;
         z-index: 1;
+    }
+}
+
+/* Android WebView status bar: env(safe-area-inset-top) may not be available
+   without edge-to-edge mode; fall back to 24px (standard status bar height). */
+@media (display-mode: standalone) {
+    .top-bar {
+        padding-top: max(env(safe-area-inset-top, 0px), 0px);
     }
 }
 

@@ -66,7 +66,7 @@ else
         </div>
     }
 
-    @if (_updateVersion != null)
+    @if (_updateVersion != null && !OperatingSystem.IsAndroid())
     {
         <div class="update-toast" @ref="_updateToast">
             @if (_updating)
@@ -96,6 +96,10 @@ else
     private ElementReference _updateToast;
     private bool _updateToastAttached;
 
+#if ANDROID
+    [Inject] private BackButtonService? BackBtn { get; set; }
+#endif
+
     private string VaultPath => VaultContext.VaultPath ?? string.Empty;
 
     protected override void OnInitialized()
@@ -106,7 +110,12 @@ else
         EnsureVaultDirectories();
         if (VaultContext.IsConfigured)
             Watcher.StartWatching(VaultPath);
-        _ = CheckForUpdateAsync();
+        if (!OperatingSystem.IsAndroid())
+            _ = CheckForUpdateAsync();
+#if ANDROID
+        if (BackBtn is not null)
+            BackBtn.BackPressed += HandleBackButton;
+#endif
     }
 
     private async Task CheckForUpdateAsync()
@@ -185,6 +194,24 @@ else
 
     private void ToggleSidebar() => _sidebarOpen = !_sidebarOpen;
     private void CloseSidebar() => _sidebarOpen = false;
+
+#if ANDROID
+    private bool HandleBackButton()
+    {
+        if (_sidebarOpen)
+        {
+            _sidebarOpen = false;
+            InvokeAsync(StateHasChanged);
+            return true;
+        }
+        if (NavService.Tabs.Count > 1 && NavService.ActiveTab is { } tab)
+        {
+            NavService.CloseTab(tab.Id);
+            return true;
+        }
+        return false;
+    }
+#endif
     private void OpenTodayFab() =>
         NavService.OpenTab(TabType.DailyPage, DateTimeOffset.Now.ToString("yyyy-MM-dd"));
 
@@ -234,6 +261,10 @@ else
         NavService.TabsChanged -= Refresh;
         VaultContext.VaultPathChanged -= OnVaultPathChanged;
         MetadataService.ArchiveGuardTriggered -= OnArchiveGuardTriggered;
+#if ANDROID
+        if (BackBtn is not null)
+            BackBtn.BackPressed -= HandleBackButton;
+#endif
         _dotNetRef?.Dispose();
     }
 }

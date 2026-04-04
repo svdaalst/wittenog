@@ -11,6 +11,7 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
         new() { WriteIndented = true };
 
     private readonly IFileSystem _fs;
+    private readonly object _lock = new();
     private string? _loadedVault;
     private VaultSettings _settings = new();
     // Derived from _settings.ArchivedLinks for O(1) case-insensitive lookup.
@@ -64,98 +65,142 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
 
     public bool IsArchived(string vaultPath, string link)
     {
-        EnsureLoaded(vaultPath);
-        return _archivedSet.Contains(link);
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            return _archivedSet.Contains(link);
+        }
     }
 
     public void SetArchivedStatus(string vaultPath, string link, bool archived)
     {
-        EnsureLoaded(vaultPath);
-        if (archived)
+        Action? fireMetadataChanged = null;
+        Action<string>? fireArchiveGuard = null;
+        lock (_lock)
         {
-            _archivedSet.Add(link);
-            var hasOpenTasks = _settings.Tasks.Any(t =>
-                string.Equals(t.ProjectLink, link, StringComparison.OrdinalIgnoreCase));
-            if (hasOpenTasks)
-                ArchiveGuardTriggered?.Invoke(link);
+            EnsureLoaded(vaultPath);
+            if (archived)
+            {
+                _archivedSet.Add(link);
+                var hasOpenTasks = _settings.Tasks.Any(t =>
+                    string.Equals(t.ProjectLink, link, StringComparison.OrdinalIgnoreCase));
+                if (hasOpenTasks)
+                    fireArchiveGuard = ArchiveGuardTriggered;
+            }
+            else
+            {
+                _archivedSet.Remove(link);
+            }
+            Persist(vaultPath);
+            fireMetadataChanged = MetadataChanged;
         }
-        else
-        {
-            _archivedSet.Remove(link);
-        }
-        Persist(vaultPath);
-        MetadataChanged?.Invoke();
+        fireArchiveGuard?.Invoke(link);
+        fireMetadataChanged?.Invoke();
     }
 
     public IReadOnlySet<string> GetArchivedLinks(string vaultPath)
     {
-        EnsureLoaded(vaultPath);
-        return _archivedSet;
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            return _archivedSet;
+        }
     }
 
     public void InvalidateCache(string vaultPath)
     {
-        if (_loadedVault == vaultPath) _loadedVault = null;
+        lock (_lock)
+        {
+            if (_loadedVault == vaultPath) _loadedVault = null;
+        }
     }
 
     // ── IVaultSettings ──────────────────────────────────────────────────────────
 
-    public TranscriptionSettings GetTranscriptionSettings(string vaultPath) =>
-        EnsureLoaded(vaultPath).Transcription;
+    public TranscriptionSettings GetTranscriptionSettings(string vaultPath)
+    {
+        lock (_lock)
+        {
+            return EnsureLoaded(vaultPath).Transcription;
+        }
+    }
 
     public void SaveTranscriptionSettings(string vaultPath, TranscriptionSettings settings)
     {
-        EnsureLoaded(vaultPath);
-        _settings = _settings with { Transcription = settings };
-        Persist(vaultPath);
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            _settings = _settings with { Transcription = settings };
+            Persist(vaultPath);
+        }
     }
 
-    public string? GetDailyTemplate(string vaultPath) =>
-        EnsureLoaded(vaultPath).DailyTemplate;
+    public string? GetDailyTemplate(string vaultPath)
+    {
+        lock (_lock)
+        {
+            return EnsureLoaded(vaultPath).DailyTemplate;
+        }
+    }
 
     public void SaveDailyTemplate(string vaultPath, string? template)
     {
-        EnsureLoaded(vaultPath);
-        _settings = _settings with { DailyTemplate = template };
-        Persist(vaultPath);
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            _settings = _settings with { DailyTemplate = template };
+            Persist(vaultPath);
+        }
     }
 
     // ── ITaskCache ──────────────────────────────────────────────────────────────
 
     public IReadOnlyList<TaskItem> GetTasks(string vaultPath)
     {
-        EnsureLoaded(vaultPath);
-        return _settings.Tasks.Select(MapToTaskItem).ToList().AsReadOnly();
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            return _settings.Tasks.Select(MapToTaskItem).ToList().AsReadOnly();
+        }
     }
 
     public void SetTasksForFile(string vaultPath, string filePath, IReadOnlyList<TaskItem> tasks)
     {
-        EnsureLoaded(vaultPath);
-        var others = _settings.Tasks
-            .Where(t => !string.Equals(t.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        others.AddRange(tasks.Select(MapToData));
-        _settings = _settings with { Tasks = others };
-        Persist(vaultPath);
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            var others = _settings.Tasks
+                .Where(t => !string.Equals(t.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            others.AddRange(tasks.Select(MapToData));
+            _settings = _settings with { Tasks = others };
+            Persist(vaultPath);
+        }
     }
 
     public void RemoveTask(string vaultPath, string taskId)
     {
-        EnsureLoaded(vaultPath);
-        _settings = _settings with { Tasks = _settings.Tasks.Where(t => t.Id != taskId).ToList() };
-        Persist(vaultPath);
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            _settings = _settings with { Tasks = _settings.Tasks.Where(t => t.Id != taskId).ToList() };
+            Persist(vaultPath);
+        }
     }
 
     public void ClearTasksForFile(string vaultPath, string filePath)
     {
-        EnsureLoaded(vaultPath);
-        _settings = _settings with
+        lock (_lock)
         {
-            Tasks = _settings.Tasks
-                .Where(t => !string.Equals(t.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
-                .ToList()
-        };
-        Persist(vaultPath);
+            EnsureLoaded(vaultPath);
+            _settings = _settings with
+            {
+                Tasks = _settings.Tasks
+                    .Where(t => !string.Equals(t.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                    .ToList()
+            };
+            Persist(vaultPath);
+        }
     }
 
     // ── Mapping helpers ─────────────────────────────────────────────────────────

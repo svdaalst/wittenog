@@ -24,7 +24,7 @@ else
 <div class="virtual-canvas" @ref="_canvasEl">
     <div class="canvas-header">
         <h2>
-            @(Tab.Type == TabType.DailyPage ? "📅" : "🏷️") @Tab.Query
+            @(Tab.Type == TabType.DailyPage ? "📅" : Tab.Type == TabType.OrphanPage ? "📂" : "🏷️") @Tab.Query
             @if (_isArchived)
             {
                 <span class="archive-badge">[Gearchiveerd]</span>
@@ -35,8 +35,11 @@ else
                     title="@(_allCollapsed ? "Alles uitklappen" : "Alles inklappen")">
                 @(_allCollapsed ? "▸▸ Uitklappen" : "▾▾ Inklappen")
             </button>
-            <NewNoteButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnNoteCreated="RefreshAsync" />
-            <NewFlowButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnFlowCreated="RefreshAsync" />
+            @if (Tab.Type != TabType.OrphanPage)
+            {
+                <NewNoteButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnNoteCreated="RefreshAsync" />
+                <NewFlowButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnFlowCreated="RefreshAsync" />
+            }
         </div>
     </div>
 
@@ -50,7 +53,16 @@ else
     }
     else if (!_blocks.Any())
     {
-        <p class="empty-state">Geen notities voor @Tab.Query. Maak er een aan met "+ Nieuw".</p>
+        <p class="empty-state">
+            @if (Tab.Type == TabType.OrphanPage)
+            {
+                @:Geen notities zonder wikilinks gevonden.
+            }
+            else
+            {
+                @:Geen notities voor @Tab.Query. Maak er een aan met "+ Nieuw".
+            }
+        </p>
     }
     else
     {
@@ -107,6 +119,15 @@ else
         try
         {
             _error = null;
+
+            if (Tab.Type == TabType.OrphanPage)
+            {
+                var orphans = await Mediator.Send(new GetOrphanNotesQuery(VaultPath));
+                _blocks = orphans.Select(VaultBlock.FromNote).ToList();
+                _allCollapsed = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
 
             var notesTask = Tab.Type == TabType.DailyPage
                 ? Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query))

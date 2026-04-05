@@ -21,4 +21,13 @@ public interface IVaultSettings
 
     /// <summary>Persists the daily-note template for the given vault.</summary>
     void SaveDailyTemplate(string vaultPath, string? template);
+
+    /// <summary>
+    /// Returns whether the app should automatically open today's daily note on startup.
+    /// Defaults to <c>true</c> when not configured.
+    /// </summary>
+    bool GetOpenDailyOnStartup(string vaultPath);
+
+    /// <summary>Persists the open-daily-on-startup preference for the given vault.</summary>
+    void SaveOpenDailyOnStartup(string vaultPath, bool value);
 }

@@ -436,6 +436,100 @@ html, body {
 
 .collapse-all-btn:hover { background: rgba(255,255,255,0.12); color: var(--text); }
 
+.task-help-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+.task-help-btn:hover { background: rgba(255,255,255,0.15); color: var(--accent); }
+
+.task-help-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.task-help-modal {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 90%;
+    position: relative;
+}
+
+.task-help-modal h3 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.task-help-intro {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+}
+
+.task-help-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+.task-help-close:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+.task-help-section {
+    margin-bottom: 14px;
+}
+
+.task-help-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.task-help-hint {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.75;
+}
+
+.task-help-section code {
+    display: block;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    padding: 5px 9px;
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-top: 3px;
+    font-family: monospace;
+}
+
 .loading, .empty-state {
     color: var(--text-muted);
     font-style: italic;

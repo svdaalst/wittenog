@@ -47,6 +47,11 @@
                 }
             </div>
         }
+        <div class="tree-node">
+            <div class="tree-node-label leaf orphan-link" @onclick="OpenOrphanPage">
+                <span>🔗 Notities zonder links</span>
+            </div>
+        </div>
     </div>
     <SidebarTaskPanel VaultPath="@VaultPath" />
 
@@ -160,6 +165,8 @@
     }
 
     private void ToggleArchiveSection() => _archiveSectionExpanded = !_archiveSectionExpanded;
+
+    private void OpenOrphanPage() => NavService.OpenTab(TabType.OrphanPage, "Notities zonder links");
 
     private void ToggleVaultDropdown() => _vaultDropdownOpen = !_vaultDropdownOpen;
 

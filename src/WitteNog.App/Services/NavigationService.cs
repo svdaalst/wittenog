@@ -1,20 +1,35 @@
 namespace WitteNog.App.Services;
 
 using WitteNog.App.Models;
+using WitteNog.Core.Interfaces;
 
 public class NavigationService : INavigationService
 {
     private readonly List<TabViewModel> _tabs = new();
     private string _activeTabId = string.Empty;
+    private readonly IVaultSettings _vaultSettings;
+    private readonly VaultContextService _vaultContext;
 
     public IReadOnlyList<TabViewModel> Tabs => _tabs.AsReadOnly();
     public TabViewModel? ActiveTab => _tabs.FirstOrDefault(t => t.Id == _activeTabId);
     public event Action? TabsChanged;
 
-    public NavigationService()
+    public NavigationService(IVaultSettings vaultSettings, VaultContextService vaultContext)
     {
-        var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
-        OpenNewTab(TabType.DailyPage, today);
+        _vaultSettings = vaultSettings;
+        _vaultContext = vaultContext;
+        // No initial tab — InitializeDefaultTabs() is called explicitly after vault is ready
+    }
+
+    public void InitializeDefaultTabs()
+    {
+        var vaultPath = _vaultContext.VaultPath;
+        if (vaultPath == null) return;
+        if (_vaultSettings.GetOpenDailyOnStartup(vaultPath))
+        {
+            var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
+            OpenNewTab(TabType.DailyPage, today);
+        }
     }
 
     public void OpenTab(TabType type, string query)
@@ -55,7 +70,7 @@ public class NavigationService : INavigationService
     public void ClearTabs()
     {
         _tabs.Clear();
-        var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
-        OpenNewTab(TabType.DailyPage, today);
+        InitializeDefaultTabs();
+        TabsChanged?.Invoke();
     }
 }

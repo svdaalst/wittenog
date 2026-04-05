@@ -11,5 +11,6 @@ public interface INavigationService
     void CloseTab(string tabId);
     void SetActiveTab(string tabId);
     void ClearTabs();
+    void InitializeDefaultTabs();
     event Action TabsChanged;
 }

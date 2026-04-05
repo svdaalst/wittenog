@@ -109,7 +109,10 @@ else
         MetadataService.ArchiveGuardTriggered += OnArchiveGuardTriggered;
         EnsureVaultDirectories();
         if (VaultContext.IsConfigured)
+        {
             Watcher.StartWatching(VaultPath);
+            NavService.InitializeDefaultTabs();
+        }
         if (!OperatingSystem.IsAndroid())
             _ = CheckForUpdateAsync();
 #if ANDROID
@@ -239,6 +242,7 @@ else
     {
         EnsureVaultDirectories();
         Watcher.StartWatching(VaultPath);
+        NavService.InitializeDefaultTabs();
         InvokeAsync(StateHasChanged);
     }
 

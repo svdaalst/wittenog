@@ -143,6 +143,14 @@
                 @if (_activeTab == "template")
                 {
                     <h4 class="settings-section-title">Dag-template</h4>
+
+                    <div class="settings-row">
+                        <label class="settings-label">
+                            <input type="checkbox" id="settings-daily-startup" checked="@_openDailyOnStartup" />
+                            Altijd starten met dagnotitie van vandaag
+                        </label>
+                    </div>
+
                     <p class="settings-hint">Inhoud die wordt toegevoegd aan elke nieuw aangemaakte dagnotitie (markdown).</p>
 
                     <div class="settings-row settings-row--column">
@@ -222,6 +230,7 @@
     private bool _transcriptionSaved;
 
     private string _dailyTemplate = string.Empty;
+    private bool _openDailyOnStartup = true;
     private bool _dailyTemplateSaved;
 
     private bool _checkingUpdate;
@@ -240,6 +249,7 @@
         _newPath = string.Empty;
         LoadTranscriptionSettings();
         _dailyTemplate = VaultSettings.GetDailyTemplate(VaultContext.VaultPath ?? string.Empty) ?? string.Empty;
+        _openDailyOnStartup = VaultSettings.GetOpenDailyOnStartup(VaultContext.VaultPath ?? string.Empty);
     }
 
     private void LoadTranscriptionSettings()
@@ -322,6 +332,7 @@
         else if (action == "save-daily-template")
         {
             _dailyTemplate = await JS.InvokeAsync<string>("getInputValue", "settings-daily-template");
+            _openDailyOnStartup = await JS.InvokeAsync<bool>("getCheckboxChecked", "settings-daily-startup");
             SaveDailyTemplate();
             await InvokeAsync(StateHasChanged);
         }
@@ -420,6 +431,7 @@
         if (VaultContext.VaultPath is null) return;
         VaultSettings.SaveDailyTemplate(VaultContext.VaultPath,
             string.IsNullOrWhiteSpace(_dailyTemplate) ? null : _dailyTemplate);
+        VaultSettings.SaveOpenDailyOnStartup(VaultContext.VaultPath, _openDailyOnStartup);
         _dailyTemplateSaved = true;
     }
 

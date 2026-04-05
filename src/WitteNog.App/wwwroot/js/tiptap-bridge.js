@@ -4,6 +4,12 @@ window.getInputValue = function(id) {
     return el ? el.value : '';
 };
 
+// Lees de checked-status van een checkbox direct uit de DOM
+window.getCheckboxChecked = function(id) {
+    const el = document.getElementById(id);
+    return el ? el.checked : false;
+};
+
 // Onboarding button delegation — zelfde patroon als WikiLinks
 window.OnboardingDelegate = {
     attach(element, dotNetRef) {

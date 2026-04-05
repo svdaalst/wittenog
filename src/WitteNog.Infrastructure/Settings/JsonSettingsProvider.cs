@@ -153,6 +153,24 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
         }
     }
 
+    public bool GetOpenDailyOnStartup(string vaultPath)
+    {
+        lock (_lock)
+        {
+            return EnsureLoaded(vaultPath).OpenDailyOnStartup;
+        }
+    }
+
+    public void SaveOpenDailyOnStartup(string vaultPath, bool value)
+    {
+        lock (_lock)
+        {
+            EnsureLoaded(vaultPath);
+            _settings = _settings with { OpenDailyOnStartup = value };
+            Persist(vaultPath);
+        }
+    }
+
     // ── ITaskCache ──────────────────────────────────────────────────────────────
 
     public IReadOnlyList<TaskItem> GetTasks(string vaultPath)
@@ -237,6 +255,7 @@ internal record VaultSettings
     public TranscriptionSettings Transcription { get; init; } = new();
     public List<TaskItemData> Tasks { get; init; } = [];
     public string? DailyTemplate { get; init; }
+    public bool OpenDailyOnStartup { get; init; } = true;
 }
 
 internal record TaskItemData(

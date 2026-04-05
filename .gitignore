@@ -60,3 +60,4 @@ coverage-results*/
 
 # Claude Code
 .claude/
+.idea/

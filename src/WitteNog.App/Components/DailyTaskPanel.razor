@@ -37,8 +37,9 @@
         if (!DateOnly.TryParse(Date, out var date)) return;
 
         _tasks = TaskCache.GetTasks(VaultPath)
-            .Where(t => t.Deadline == date)
-            .OrderBy(t => t.Priority ?? int.MaxValue)
+            .Where(t => t.Deadline.HasValue && t.Deadline.Value <= date)
+            .OrderBy(t => t.Deadline)
+            .ThenBy(t => t.Priority ?? int.MaxValue)
             .ThenBy(t => t.Description)
             .ToList();
     }

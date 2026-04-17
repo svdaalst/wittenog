@@ -161,6 +161,42 @@ html, body {
 /* Vault active indicator in settings */
 .vault-active { font-weight: 600; color: var(--text); }
 
+/* ── Daily task panel ───────────────────────────────────────────────────── */
+.daily-task-panel {
+    margin: 0 0 12px 0;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.daily-task-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.daily-task-panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.daily-task-panel-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    border-radius: 10px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
+}
+
 /* ── Sidebar task panel ─────────────────────────────────────────────────── */
 .sidebar-task-panel {
     flex-shrink: 0;
@@ -1544,6 +1580,37 @@ html, body {
 .priority-low         { color: rgba(255,255,255,0.5); }
 
 .task-deadline.overdue { color: #e94560; }
+
+.task-inline-select,
+.task-inline-date {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    padding: 1px 3px;
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
+}
+
+.task-inline-select:hover,
+.task-inline-date:hover {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.task-inline-select:focus,
+.task-inline-date:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.task-inline-select option {
+    background: var(--surface);
+    color: var(--text);
+}
 
 .tasks-btn {
     background: none;

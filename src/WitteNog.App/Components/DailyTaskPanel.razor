@@ -1,0 +1,54 @@
+@inject ITaskCache TaskCache
+@inject VaultWatcherService Watcher
+@implements IDisposable
+@using WitteNog.App.Services
+@using WitteNog.Core.Events
+@using WitteNog.Core.Interfaces
+@using WitteNog.Core.Models
+
+@if (_tasks != null && _tasks.Count > 0)
+{
+    <div class="daily-task-panel">
+        <div class="daily-task-panel-header">
+            <span class="daily-task-panel-title">Taken vandaag</span>
+            <span class="daily-task-panel-badge">@_tasks.Count</span>
+        </div>
+        <TaskTable Tasks="@_tasks" VaultPath="@VaultPath" />
+    </div>
+}
+
+@code {
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public string Date { get; set; } = string.Empty;
+
+    private List<TaskItem>? _tasks;
+
+    protected override Task OnParametersSetAsync()
+    {
+        Watcher.NoteChanged -= OnExternalChange;
+        Watcher.NoteChanged += OnExternalChange;
+        Refresh();
+        return Task.CompletedTask;
+    }
+
+    private void Refresh()
+    {
+        if (string.IsNullOrEmpty(VaultPath) || string.IsNullOrEmpty(Date)) return;
+        if (!DateOnly.TryParse(Date, out var date)) return;
+
+        _tasks = TaskCache.GetTasks(VaultPath)
+            .Where(t => t.Deadline.HasValue && t.Deadline.Value <= date)
+            .OrderBy(t => t.Deadline)
+            .ThenBy(t => t.Priority ?? int.MaxValue)
+            .ThenBy(t => t.Description)
+            .ToList();
+    }
+
+    private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(() =>
+    {
+        Refresh();
+        return InvokeAsync(StateHasChanged);
+    });
+
+    public void Dispose() => Watcher.NoteChanged -= OnExternalChange;
+}

@@ -26,6 +26,30 @@ window.OnboardingDelegate = {
 };
 
 // Task dashboard delegation — passes action and taskid or filepath
+window.TaskTableDelegate = {
+    attach(element, dotNetRef) {
+        element.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action]');
+            if (target) {
+                e.stopPropagation();
+                dotNetRef.invokeMethodAsync('HandleAction',
+                    target.dataset.action,
+                    target.dataset.wikilink || target.dataset.filepath || target.dataset.taskid || '');
+            }
+        });
+        element.addEventListener('change', (e) => {
+            const target = e.target.closest('[data-task-field]');
+            if (target) {
+                e.stopPropagation();
+                dotNetRef.invokeMethodAsync('HandleFieldChange',
+                    target.dataset.taskid,
+                    target.dataset.taskField,
+                    target.value);
+            }
+        });
+    }
+};
+
 window.TaskDelegate = {
     attach(element, dotNetRef) {
         element.addEventListener('click', (e) => {
@@ -34,6 +58,15 @@ window.TaskDelegate = {
                 dotNetRef.invokeMethodAsync('HandleAction',
                     target.dataset.action,
                     target.dataset.wikilink || target.dataset.filepath || target.dataset.taskid || '');
+            }
+        });
+        element.addEventListener('change', (e) => {
+            const target = e.target.closest('[data-task-field]');
+            if (target) {
+                dotNetRef.invokeMethodAsync('HandleFieldChange',
+                    target.dataset.taskid,
+                    target.dataset.taskField,
+                    target.value);
             }
         });
     }

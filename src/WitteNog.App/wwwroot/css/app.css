@@ -161,6 +161,42 @@ html, body {
 /* Vault active indicator in settings */
 .vault-active { font-weight: 600; color: var(--text); }
 
+/* ── Daily task panel ───────────────────────────────────────────────────── */
+.daily-task-panel {
+    margin: 0 0 12px 0;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.daily-task-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.daily-task-panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.daily-task-panel-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    border-radius: 10px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
+}
+
 /* ── Sidebar task panel ─────────────────────────────────────────────────── */
 .sidebar-task-panel {
     flex-shrink: 0;

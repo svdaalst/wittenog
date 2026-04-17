@@ -43,6 +43,11 @@ else
         </div>
     </div>
 
+    @if (Tab.Type == TabType.DailyPage)
+    {
+        <DailyTaskPanel VaultPath="@VaultPath" Date="@Tab.Query" />
+    }
+
     @if (_error != null)
     {
         <p class="error-state">Fout: @_error</p>

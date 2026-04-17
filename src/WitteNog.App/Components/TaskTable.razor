@@ -1,0 +1,156 @@
+@inject IMediator Mediator
+@inject INavigationService NavService
+@inject IJSRuntime JS
+@implements IDisposable
+@using MediatR
+@using System.Text.RegularExpressions
+@using WitteNog.App.Models
+@using WitteNog.App.Services
+@using WitteNog.Application.Commands
+@using WitteNog.Core.Models
+@using Microsoft.JSInterop
+
+<div @ref="_container">
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Omschrijving</th>
+                <th>Bron</th>
+                <th>Prioriteit</th>
+                <th>Deadline</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var task in Tasks)
+            {
+                <tr class="task-row">
+                    <td>
+                        <button class="complete-task-btn"
+                                title="Markeer als voltooid"
+                                data-action="complete"
+                                data-taskid="@task.Id">☐</button>
+                    </td>
+                    <td class="task-desc">@task.Description</td>
+                    <td class="task-source">
+                        <button class="source-link"
+                                data-action="open-source"
+                                data-filepath="@task.FilePath"
+                                data-wikilink="@task.SourceFirstWikiLink"
+                                title="Open @(task.SourceFirstWikiLink ?? Path.GetFileNameWithoutExtension(task.FilePath))">
+                            @(task.SourceFirstWikiLink ?? Path.GetFileNameWithoutExtension(task.FilePath))
+                        </button>
+                        @if (task.ProjectLink != null)
+                        {
+                            <span class="wiki-chip">[[@task.ProjectLink]]</span>
+                        }
+                    </td>
+                    <td class="task-priority">
+                        <select class="task-inline-select"
+                                data-task-field="priority"
+                                data-taskid="@task.Id">
+                            <option value="" selected="@(task.Priority == null)">—</option>
+                            @for (int p = 1; p <= 5; p++)
+                            {
+                                var pVal = p;
+                                <option value="@pVal" selected="@(task.Priority == pVal)">P@(pVal)</option>
+                            }
+                        </select>
+                    </td>
+                    <td class="task-deadline @(IsOverdue(task) ? "overdue" : "")">
+                        <input type="date"
+                               class="task-inline-date"
+                               data-task-field="deadline"
+                               data-taskid="@task.Id"
+                               value="@(task.Deadline?.ToString("yyyy-MM-dd") ?? "")" />
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<TaskItem> Tasks { get; set; } = [];
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnCompleted { get; set; }
+    [Parameter] public EventCallback<string> OnError { get; set; }
+
+    private ElementReference _container;
+    private DotNetObjectReference<TaskTable>? _dotNetRef;
+
+    protected override void OnInitialized()
+    {
+        _dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("TaskTableDelegate.attach", _container, _dotNetRef);
+    }
+
+    [JSInvokable]
+    public async Task HandleAction(string action, string data)
+    {
+        if (action == "complete")
+            await CompleteTask(data);
+        else if (action == "open-source")
+            await OpenSourceNote(data);
+    }
+
+    [JSInvokable]
+    public async Task HandleFieldChange(string taskId, string field, string value)
+    {
+        if (string.IsNullOrEmpty(VaultPath) || string.IsNullOrEmpty(taskId)) return;
+
+        var task = Tasks.FirstOrDefault(t => t.Id == taskId);
+        if (task == null) return;
+
+        DateOnly? deadline = task.Deadline;
+        int? priority = task.Priority;
+
+        if (field == "deadline")
+            deadline = string.IsNullOrEmpty(value) ? null : DateOnly.TryParse(value, out var d) ? d : task.Deadline;
+        else if (field == "priority")
+            priority = string.IsNullOrEmpty(value) ? null : int.TryParse(value, out var p) ? p : task.Priority;
+
+        try
+        {
+            await Mediator.Send(new UpdateTaskCommand(VaultPath, taskId, deadline, priority));
+        }
+        catch (Exception ex)
+        {
+            await OnError.InvokeAsync($"Taak kon niet worden bijgewerkt: {ex.Message}");
+        }
+    }
+
+    private async Task CompleteTask(string taskId)
+    {
+        if (string.IsNullOrEmpty(VaultPath) || string.IsNullOrEmpty(taskId)) return;
+        var description = Tasks.FirstOrDefault(t => t.Id == taskId)?.Description ?? taskId;
+        try
+        {
+            await Mediator.Send(new CompleteTaskCommand(VaultPath, taskId));
+            await OnCompleted.InvokeAsync(description);
+        }
+        catch (Exception ex)
+        {
+            await OnError.InvokeAsync($"Taak kon niet worden voltooid: {ex.Message}");
+        }
+    }
+
+    private async Task OpenSourceNote(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath)) return;
+        var slug = Path.GetFileNameWithoutExtension(filePath);
+        var type = Regex.IsMatch(slug, @"^\d{4}-\d{2}-\d{2}$") ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, slug);
+        await JS.InvokeVoidAsync("scrollToNote", slug);
+    }
+
+    private static bool IsOverdue(TaskItem task) =>
+        task.Deadline.HasValue && task.Deadline.Value < DateOnly.FromDateTime(DateTime.Today);
+
+    public void Dispose() => _dotNetRef?.Dispose();
+}

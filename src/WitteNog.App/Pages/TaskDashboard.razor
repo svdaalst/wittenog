@@ -1,7 +1,7 @@
 @using MediatR
+@using WitteNog.App.Components
 @using WitteNog.App.Models
 @using WitteNog.App.Services
-@using WitteNog.Application.Commands
 @using WitteNog.Application.Queries
 @using WitteNog.Core.Events
 @using WitteNog.Core.Interfaces
@@ -10,7 +10,6 @@
 @inject IMediator Mediator
 @inject VaultContextService VaultContext
 @inject VaultWatcherService Watcher
-@inject INavigationService NavService
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -69,7 +68,6 @@
         <div class="archive-guard-toast" data-action="dismiss-error">@_errorMessage</div>
     }
 
-    @* ── Filters ──────────────────────────────────────────────────────── *@
     <div class="task-filters">
         <div class="task-filter-group">
             <label>Project:</label>
@@ -94,61 +92,24 @@
         </div>
     </div>
 
-    @* ── Task table ───────────────────────────────────────────────────── *@
-    @if (_tasks == null)
+    @{
+        var visibleTasks = _tasks == null ? null : FilteredTasks.ToList();
+    }
+
+    @if (visibleTasks == null)
     {
         <p class="loading">Laden...</p>
     }
-    else if (!FilteredTasks.Any())
+    else if (visibleTasks.Count == 0)
     {
         <p class="empty-state">Geen openstaande taken gevonden.</p>
     }
     else
     {
-        <table class="task-table">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th>Omschrijving</th>
-                    <th>Bron</th>
-                    <th>Prioriteit</th>
-                    <th>Deadline</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var task in FilteredTasks)
-                {
-                    <tr class="task-row">
-                        <td>
-                            <button class="complete-task-btn"
-                                    title="Markeer als voltooid"
-                                    data-action="complete"
-                                    data-taskid="@task.Id">☐</button>
-                        </td>
-                        <td class="task-desc">@task.Description</td>
-                        <td class="task-source">
-                            <button class="source-link"
-                                    data-action="open-source"
-                                    data-filepath="@task.FilePath"
-                                    data-wikilink="@task.SourceFirstWikiLink"
-                                    title="Open @(task.SourceFirstWikiLink ?? System.IO.Path.GetFileNameWithoutExtension(task.FilePath))">
-                                @(task.SourceFirstWikiLink ?? System.IO.Path.GetFileNameWithoutExtension(task.FilePath))
-                            </button>
-                            @if (task.ProjectLink != null)
-                            {
-                                <span class="wiki-chip">[[@task.ProjectLink]]</span>
-                            }
-                        </td>
-                        <td class="task-priority @PriorityClass(task.Priority)">
-                            @(task.Priority.HasValue ? $"P{task.Priority}" : "—")
-                        </td>
-                        <td class="task-deadline @(IsOverdue(task) ? "overdue" : "")">
-                            @(task.Deadline?.ToString("yyyy-MM-dd") ?? "—")
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <TaskTable Tasks="@visibleTasks"
+                   VaultPath="@(VaultContext.VaultPath ?? VaultPath)"
+                   OnCompleted="OnTaskCompleted"
+                   OnError="OnTaskError" />
     }
 </div>
 
@@ -185,11 +146,7 @@
     [JSInvokable]
     public async Task HandleAction(string action, string data)
     {
-        if (action == "complete")
-            await CompleteTaskById(data);
-        else if (action == "open-source")
-            await OpenSourceNote(data);
-        else if (action == "rescan")
+        if (action == "rescan")
             await RescanAsync();
         else if (action == "dismiss-info")
         {
@@ -211,6 +168,18 @@
             _showHelp = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task OnTaskCompleted(string description)
+    {
+        _infoMessage = $"✓ Afgevinkt: {description}";
+        await RefreshAsync();
+    }
+
+    private async Task OnTaskError(string message)
+    {
+        _errorMessage = message;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RefreshAsync(string? vaultPath = null)
@@ -252,55 +221,6 @@
                 .Select(t => t.ProjectLink!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(p => p);
-
-    private async Task OpenSourceNote(string filePath)
-    {
-        if (string.IsNullOrEmpty(filePath)) return;
-        var slug = System.IO.Path.GetFileNameWithoutExtension(filePath);
-        var type = System.Text.RegularExpressions.Regex.IsMatch(slug, @"^\d{4}-\d{2}-\d{2}$")
-            ? TabType.DailyPage : TabType.TopicPage;
-        NavService.OpenTab(type, slug);
-        await JS.InvokeVoidAsync("scrollToNote", slug);
-    }
-
-    private async Task CompleteTaskById(string taskId)
-    {
-        var vaultPath = VaultContext.VaultPath ?? VaultPath;
-        if (string.IsNullOrEmpty(vaultPath))
-        {
-            _errorMessage = "Kluis is niet geconfigureerd. Herstart de app en probeer het opnieuw.";
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-        _errorMessage = null;
-        _infoMessage = null;
-        var taskDesc = _tasks?.FirstOrDefault(t => t.Id == taskId)?.Description ?? taskId;
-        try
-        {
-            await Mediator.Send(new CompleteTaskCommand(vaultPath, taskId));
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Taak kon niet worden voltooid: {ex.Message}";
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-        _infoMessage = $"✓ Afgevinkt: {taskDesc}";
-        await RefreshAsync(vaultPath);
-    }
-
-    private static string PriorityClass(int? priority) => priority switch
-    {
-        1 => "priority-high",
-        2 => "priority-medium-high",
-        3 => "priority-medium",
-        4 => "priority-medium-low",
-        5 => "priority-low",
-        _ => string.Empty
-    };
-
-    private static bool IsOverdue(TaskItem task) =>
-        task.Deadline.HasValue && task.Deadline.Value < DateOnly.FromDateTime(DateTime.Today);
 
     private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(() => RefreshAsync());
     private void OnMetadataChange() => InvokeAsync(() => RefreshAsync());

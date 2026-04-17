@@ -1,70 +1,19 @@
 @inject ITaskCache TaskCache
-@inject INavigationService NavService
 @inject VaultWatcherService Watcher
-@inject IMediator Mediator
-@inject IJSRuntime JS
 @implements IDisposable
-@using MediatR
-@using System.Text.RegularExpressions
-@using WitteNog.App.Models
 @using WitteNog.App.Services
-@using WitteNog.Application.Commands
 @using WitteNog.Core.Events
 @using WitteNog.Core.Interfaces
 @using WitteNog.Core.Models
-@using Microsoft.JSInterop
 
 @if (_tasks != null && _tasks.Count > 0)
 {
-    <div class="daily-task-panel" @ref="_container">
+    <div class="daily-task-panel">
         <div class="daily-task-panel-header">
             <span class="daily-task-panel-title">Taken vandaag</span>
             <span class="daily-task-panel-badge">@_tasks.Count</span>
         </div>
-        <table class="task-table">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th>Omschrijving</th>
-                    <th>Bron</th>
-                    <th>Prioriteit</th>
-                    <th>Deadline</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var task in _tasks)
-                {
-                    <tr class="task-row">
-                        <td>
-                            <button class="complete-task-btn"
-                                    title="Markeer als voltooid"
-                                    data-action="complete"
-                                    data-taskid="@task.Id">☐</button>
-                        </td>
-                        <td class="task-desc">@task.Description</td>
-                        <td class="task-source">
-                            <button class="source-link"
-                                    data-action="open-source"
-                                    data-filepath="@task.FilePath"
-                                    data-wikilink="@task.SourceFirstWikiLink"
-                                    title="Open @(task.SourceFirstWikiLink ?? Path.GetFileNameWithoutExtension(task.FilePath))">
-                                @(task.SourceFirstWikiLink ?? Path.GetFileNameWithoutExtension(task.FilePath))
-                            </button>
-                            @if (task.ProjectLink != null)
-                            {
-                                <span class="wiki-chip">[[@task.ProjectLink]]</span>
-                            }
-                        </td>
-                        <td class="task-priority @PriorityClass(task.Priority)">
-                            @(task.Priority.HasValue ? $"P{task.Priority}" : "—")
-                        </td>
-                        <td class="task-deadline @(IsOverdue(task) ? "overdue" : "")">
-                            @(task.Deadline?.ToString("yyyy-MM-dd") ?? "—")
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <TaskTable Tasks="@_tasks" VaultPath="@VaultPath" />
     </div>
 }
 
@@ -73,14 +22,6 @@
     [Parameter] public string Date { get; set; } = string.Empty;
 
     private List<TaskItem>? _tasks;
-    private ElementReference _container;
-    private DotNetObjectReference<DailyTaskPanel>? _dotNetRef;
-    private bool _delegateAttached;
-
-    protected override void OnInitialized()
-    {
-        _dotNetRef = DotNetObjectReference.Create(this);
-    }
 
     protected override Task OnParametersSetAsync()
     {
@@ -88,20 +29,6 @@
         Watcher.NoteChanged += OnExternalChange;
         Refresh();
         return Task.CompletedTask;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        var hasContent = _tasks?.Count > 0;
-        if (hasContent && !_delegateAttached)
-        {
-            _delegateAttached = true;
-            await JS.InvokeVoidAsync("TaskDelegate.attach", _container, _dotNetRef);
-        }
-        else if (!hasContent && _delegateAttached)
-        {
-            _delegateAttached = false;
-        }
     }
 
     private void Refresh()
@@ -116,62 +43,11 @@
             .ToList();
     }
 
-    [JSInvokable]
-    public async Task HandleAction(string action, string data)
-    {
-        if (action == "complete")
-        {
-            await CompleteTask(data);
-        }
-        else if (action == "open-source")
-        {
-            await OpenSourceNote(data);
-        }
-    }
-
-    private async Task CompleteTask(string taskId)
-    {
-        if (string.IsNullOrEmpty(VaultPath) || string.IsNullOrEmpty(taskId)) return;
-        try
-        {
-            await Mediator.Send(new CompleteTaskCommand(VaultPath, taskId));
-        }
-        catch { }
-        Refresh();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task OpenSourceNote(string filePath)
-    {
-        if (string.IsNullOrEmpty(filePath)) return;
-        var slug = Path.GetFileNameWithoutExtension(filePath);
-        var type = Regex.IsMatch(slug, @"^\d{4}-\d{2}-\d{2}$") ? TabType.DailyPage : TabType.TopicPage;
-        NavService.OpenTab(type, slug);
-        await JS.InvokeVoidAsync("scrollToNote", slug);
-    }
-
-    private static string PriorityClass(int? priority) => priority switch
-    {
-        1 => "priority-high",
-        2 => "priority-medium-high",
-        3 => "priority-medium",
-        4 => "priority-medium-low",
-        5 => "priority-low",
-        _ => string.Empty
-    };
-
-    private static bool IsOverdue(TaskItem task) =>
-        task.Deadline.HasValue && task.Deadline.Value < DateOnly.FromDateTime(DateTime.Today);
-
     private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(() =>
     {
         Refresh();
         return InvokeAsync(StateHasChanged);
     });
 
-    public void Dispose()
-    {
-        Watcher.NoteChanged -= OnExternalChange;
-        _dotNetRef?.Dispose();
-    }
+    public void Dispose() => Watcher.NoteChanged -= OnExternalChange;
 }

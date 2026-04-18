@@ -131,18 +131,22 @@
                             await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
                         }
                         _editing = false;
+                        await JS.InvokeVoidAsync("NoteBlockDelegate.clearActiveRef");
                         await InvokeAsync(StateHasChanged);
                         await OnSaved.InvokeAsync();
                     });
                     _editing = true;
+                    await JS.InvokeVoidAsync("NoteBlockDelegate.setActiveRef", _dotNetRef);
                     await InvokeAsync(StateHasChanged);
                 }
                 break;
             case "save":
+                await JS.InvokeVoidAsync("NoteBlockDelegate.clearActiveRef");
                 await SaveAsync();
                 break;
             case "cancel":
                 _editing = false;
+                await JS.InvokeVoidAsync("NoteBlockDelegate.clearActiveRef");
                 EditModeCoordinator.ExitEditMode(Note.Id);
                 await InvokeAsync(StateHasChanged);
                 break;

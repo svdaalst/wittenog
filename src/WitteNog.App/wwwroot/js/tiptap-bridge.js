@@ -103,6 +103,11 @@ window.TabDelegate = {
 
 // NoteBlock delegation — handles WikiLinks, audio links, and note actions
 window.NoteBlockDelegate = {
+    _activeRef: null,
+
+    setActiveRef(dotNetRef) { window.NoteBlockDelegate._activeRef = dotNetRef; },
+    clearActiveRef()        { window.NoteBlockDelegate._activeRef = null; },
+
     attach(element, dotNetRef) {
         element.addEventListener('click', (e) => {
             // Handle wiki links first
@@ -126,12 +131,6 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleNoteAction',
                     actionTarget.dataset.action,
                     actionTarget.dataset.taskid || '');
-            }
-        });
-        element.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                dotNetRef.invokeMethodAsync('HandleNoteAction', 'save');
             }
         });
     }

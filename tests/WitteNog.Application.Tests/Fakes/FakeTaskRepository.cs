@@ -33,5 +33,13 @@ public class FakeTaskRepository : ITaskRepository
         return Task.CompletedTask;
     }
 
+    public Task UpdateTaskAsync(string vaultPath, string taskId, DateOnly? deadline, int? priority, CancellationToken ct = default)
+    {
+        var idx = _tasks.FindIndex(t => t.Id == taskId);
+        if (idx >= 0)
+            _tasks[idx] = _tasks[idx] with { Deadline = deadline, Priority = priority };
+        return Task.CompletedTask;
+    }
+
     public IReadOnlyList<TaskItem> All => _tasks.AsReadOnly();
 }

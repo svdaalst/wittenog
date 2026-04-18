@@ -26,7 +26,7 @@ public class GetNotesForTopicQueryTests
         new(id, $"/vault/{id}.md", id, content, links, DateTimeOffset.UtcNow);
 
     [Fact]
-    public async Task Handle_MainNoteFirst_ThenFilenameDescending()
+    public async Task Handle_MainNoteFirst_ThenFilenameAscending()
     {
         var repo = new FakeNoteRepository(new[]
         {
@@ -40,8 +40,8 @@ public class GetNotesForTopicQueryTests
 
         Assert.Equal(3, result.Count);
         Assert.Equal("ProjectX", result[0].Id);
-        Assert.Equal("note-c", result[1].Id);
-        Assert.Equal("note-a", result[2].Id);
+        Assert.Equal("note-a", result[1].Id);
+        Assert.Equal("note-c", result[2].Id);
     }
 
     [Fact]

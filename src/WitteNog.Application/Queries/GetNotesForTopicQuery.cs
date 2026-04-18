@@ -20,7 +20,7 @@ public class GetNotesForTopicQueryHandler
         var notes = await _repo.FindByWikiLinkAsync(request.VaultPath, request.Topic, ct);
         return notes
             .OrderBy(n => n.Content.Trim() == $"[[{request.Topic}]]" ? 0 : 1)
-            .ThenByDescending(n => n.Id)
+            .ThenBy(n => n.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 }

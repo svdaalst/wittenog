@@ -43,7 +43,7 @@ public class GetNotesForDateQueryTests
     }
 
     [Fact]
-    public async Task Handle_MainNoteFirst_ThenFilenameDescending()
+    public async Task Handle_MainNoteFirst_ThenFilenameAscending()
     {
         var repo = new FakeNoteRepository(new[]
         {
@@ -57,8 +57,8 @@ public class GetNotesForDateQueryTests
 
         Assert.Equal(3, result.Count);
         Assert.Equal("2026-03-18", result[0].Id);
-        Assert.Equal("note-c", result[1].Id);
-        Assert.Equal("note-a", result[2].Id);
+        Assert.Equal("note-a", result[1].Id);
+        Assert.Equal("note-c", result[2].Id);
     }
 
     [Fact]

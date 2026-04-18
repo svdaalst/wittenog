@@ -89,7 +89,10 @@ window.scrollToNote = function(noteId, attempt) {
 
 // Tab bar delegation — passes both action and tabid
 window.TabDelegate = {
+    _ref: null,
+    setRef(dotNetRef) { window.TabDelegate._ref = dotNetRef; },
     attach(element, dotNetRef) {
+        window.TabDelegate._ref = dotNetRef;
         element.addEventListener('click', (e) => {
             const target = e.target.closest('[data-action]');
             if (target) {
@@ -103,6 +106,11 @@ window.TabDelegate = {
 
 // NoteBlock delegation — handles WikiLinks, audio links, and note actions
 window.NoteBlockDelegate = {
+    _activeRef: null,
+
+    setActiveRef(dotNetRef) { window.NoteBlockDelegate._activeRef = dotNetRef; },
+    clearActiveRef()        { window.NoteBlockDelegate._activeRef = null; },
+
     attach(element, dotNetRef) {
         element.addEventListener('click', (e) => {
             // Handle wiki links first
@@ -126,12 +134,6 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleNoteAction',
                     actionTarget.dataset.action,
                     actionTarget.dataset.taskid || '');
-            }
-        });
-        element.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                dotNetRef.invokeMethodAsync('HandleNoteAction', 'save');
             }
         });
     }

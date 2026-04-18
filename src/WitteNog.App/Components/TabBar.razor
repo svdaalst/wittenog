@@ -41,6 +41,8 @@
             NavService.SetActiveTab(tabId);
         else if (action == "close")
             NavService.CloseTab(tabId);
+        else if (action == "close-active" && NavService.ActiveTab is { } active)
+            NavService.CloseTab(active.Id);
         InvokeAsync(StateHasChanged);
     }
 

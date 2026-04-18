@@ -158,13 +158,13 @@ else
                 notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
             }
 
-            // Definition note stays first; remaining notes + flows sorted by LastModified descending
-            var defNote = notes.FirstOrDefault(n => n.Content.Trim() == $"[[{Tab.Query}]]");
+            // Filename-matching note stays first; remaining notes + flows sorted by filename (Id)
+            var defNote = notes.FirstOrDefault(n => string.Equals(n.Id, Tab.Query, StringComparison.OrdinalIgnoreCase));
             var remaining = notes
                 .Where(n => n != defNote)
                 .Select(VaultBlock.FromNote)
                 .Concat(flows.Select(VaultBlock.FromFlow))
-                .OrderByDescending(b => b.LastModified);
+                .OrderBy(b => b.Id, StringComparer.OrdinalIgnoreCase);
 
             _blocks = defNote is not null
                 ? new[] { VaultBlock.FromNote(defNote) }.Concat(remaining).ToList()

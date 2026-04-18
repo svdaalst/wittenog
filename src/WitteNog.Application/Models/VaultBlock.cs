@@ -10,17 +10,19 @@ public sealed class VaultBlock
 {
     public AtomicNote? Note { get; }
     public FlowDiagram? Flow { get; }
+    public string Id { get; }
     public DateTimeOffset LastModified { get; }
     public bool IsNote => Note is not null;
     public bool IsFlow => Flow is not null;
 
-    private VaultBlock(AtomicNote? note, FlowDiagram? flow, DateTimeOffset lastModified)
+    private VaultBlock(AtomicNote? note, FlowDiagram? flow, string id, DateTimeOffset lastModified)
     {
         Note = note;
         Flow = flow;
+        Id = id;
         LastModified = lastModified;
     }
 
-    public static VaultBlock FromNote(AtomicNote note) => new(note, null, note.LastModified);
-    public static VaultBlock FromFlow(FlowDiagram flow) => new(null, flow, flow.LastModified);
+    public static VaultBlock FromNote(AtomicNote note) => new(note, null, note.Id, note.LastModified);
+    public static VaultBlock FromFlow(FlowDiagram flow) => new(null, flow, flow.Id, flow.LastModified);
 }

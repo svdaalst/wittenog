@@ -28,8 +28,14 @@
         document.addEventListener('keyup',   e => { if (e.key === 'Shift') window._shiftPressed = false; });
         window.isShiftPressed = () => window._shiftPressed;
 
-        // Ctrl+S / Ctrl+Enter = opslaan, Escape = annuleren in edit mode
+        // Ctrl+S / Ctrl+Enter = opslaan, Escape = annuleren in edit mode; Ctrl+W = tab sluiten
         document.addEventListener('keydown', e => {
+            if (e.ctrlKey && e.key === 'w') {
+                e.preventDefault();
+                const tabRef = window.TabDelegate && window.TabDelegate._ref;
+                if (tabRef) tabRef.invokeMethodAsync('HandleAction', 'close-active', '');
+                return;
+            }
             const ref = window.NoteBlockDelegate && window.NoteBlockDelegate._activeRef;
             if (!ref) return;
             if (e.ctrlKey && (e.key === 's' || e.key === 'Enter')) {

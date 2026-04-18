@@ -89,7 +89,10 @@ window.scrollToNote = function(noteId, attempt) {
 
 // Tab bar delegation — passes both action and tabid
 window.TabDelegate = {
+    _ref: null,
+    setRef(dotNetRef) { window.TabDelegate._ref = dotNetRef; },
     attach(element, dotNetRef) {
+        window.TabDelegate._ref = dotNetRef;
         element.addEventListener('click', (e) => {
             const target = e.target.closest('[data-action]');
             if (target) {

@@ -1,5 +1,6 @@
 @inject INavigationService NavService
 @inject IJSRuntime JS
+@inject EditModeCoordinatorService EditModeCoordinator
 @implements IDisposable
 @using WitteNog.App.Models
 @using WitteNog.App.Services
@@ -35,15 +36,21 @@
     }
 
     [JSInvokable]
-    public void HandleAction(string action, string tabId)
+    public async Task HandleAction(string action, string tabId)
     {
+        if (EditModeCoordinator.IsInEditMode && action is "activate" or "close" or "close-active")
+        {
+            await JS.InvokeVoidAsync("alert", "Sla eerst op of annuleer de bewerking voordat je van tabblad wisselt.");
+            return;
+        }
+
         if (action == "activate")
             NavService.SetActiveTab(tabId);
         else if (action == "close")
             NavService.CloseTab(tabId);
         else if (action == "close-active" && NavService.ActiveTab is { } active)
             NavService.CloseTab(active.Id);
-        InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
     }
 
     private void Refresh() => InvokeAsync(StateHasChanged);

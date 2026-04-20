@@ -134,6 +134,12 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleNoteAction',
                     actionTarget.dataset.action,
                     actionTarget.dataset.taskid || '');
+                return;
+            }
+            // Title bar click (not on interactive elements) toggles note collapse
+            if (e.target.closest('.note-title-bar')) {
+                e.stopPropagation();
+                element.classList.toggle('note-collapsed');
             }
         });
     }
@@ -221,6 +227,8 @@ window.HeadingCollapse = {
             s.classList.toggle('collapsed', collapse);
         for (const t of canvasElement.querySelectorAll('.heading-toggle'))
             t.textContent = collapse ? '▸' : '▾';
+        for (const nb of canvasElement.querySelectorAll('.note-block:not(.editing)'))
+            nb.classList.toggle('note-collapsed', collapse);
     }
 };
 

@@ -11,9 +11,25 @@
 @using WitteNog.Core.Models
 
 <div class="note-block @(_editing ? "editing" : "")" @ref="_container">
+    @if (_renaming)
+    {
+        <div class="note-title-bar">
+            <input id="@_renameInputId" class="note-rename-input" type="text" value="@Note.Id" />
+            <button class="note-rename-confirm" data-action="confirm-rename" title="Opslaan">✓</button>
+            <button class="note-rename-cancel" data-action="cancel-rename" title="Annuleren">✕</button>
+        </div>
+    }
+    else
+    {
+        <div class="note-title-bar">
+            <span class="note-title">@((MarkupString)RenderTitleLinks(string.IsNullOrEmpty(Note.Title) ? Note.Id : Note.Title))</span>
+            <button class="note-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+        </div>
+    }
+
     @if (_editing)
     {
-        <TipTapEditor @ref="_editor" InitialContent="@Note.Content" />
+        <TipTapEditor @ref="_editor" InitialContent="@StripLeadingH1(Note.Content)" />
         <div class="note-actions">
             <button data-action="save">Opslaan</button>
             <button data-action="cancel">Annuleren</button>
@@ -22,12 +38,15 @@
     else
     {
         <div class="note-content" data-action="edit">
-            @((MarkupString)MarkdownRenderer.Render(Note.Content, Note.FilePath))
+            @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath))
         </div>
-        <div class="note-actions-bar">
-            <RecordingPanel @ref="_recordingPanel" FilePath="@Note.FilePath" />
-            <button class="note-delete-btn" data-action="confirm-delete">✕</button>
-        </div>
+        @if (!_renaming)
+        {
+            <div class="note-actions-bar">
+                <RecordingPanel @ref="_recordingPanel" FilePath="@Note.FilePath" />
+                <button class="note-delete-btn" data-action="confirm-delete">✕</button>
+            </div>
+        }
     }
 
     @if (_showConfirm)
@@ -35,7 +54,7 @@
         <div class="modal-overlay" data-action="cancel-delete">
             <div class="modal">
                 <h3>Notitie verwijderen?</h3>
-                <p class="modal-body">@Note.Title</p>
+                <p class="modal-body">@Note.Id</p>
                 <div class="modal-actions">
                     <button data-action="delete">Verwijderen</button>
                     <button data-action="cancel-delete">Annuleren</button>
@@ -52,12 +71,19 @@
     [Parameter] public EventCallback OnSaved { get; set; }
 
     private bool _editing;
+    private bool _renaming;
     private bool _showConfirm;
     private TipTapEditor? _editor;
     private RecordingPanel? _recordingPanel;
     private ElementReference _container;
     private DotNetObjectReference<NoteBlock>? _dotNetRef;
     private string? _lastInitedContent;
+    private string _renameInputId = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        _renameInputId = $"rename-{System.Text.RegularExpressions.Regex.Replace(Note.Id, @"[^\w]", "-")}";
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -150,6 +176,17 @@
                 EditModeCoordinator.ExitEditMode(Note.Id);
                 await InvokeAsync(StateHasChanged);
                 break;
+            case "start-rename":
+                _renaming = true;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "confirm-rename":
+                await RenameAsync();
+                break;
+            case "cancel-rename":
+                _renaming = false;
+                await InvokeAsync(StateHasChanged);
+                break;
             case "confirm-delete":
                 _showConfirm = true;
                 await InvokeAsync(StateHasChanged);
@@ -182,11 +219,41 @@
         await OnSaved.InvokeAsync();
     }
 
+    private async Task RenameAsync()
+    {
+        var newSlug = await JS.InvokeAsync<string>("getInputValue", _renameInputId);
+        newSlug = newSlug?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(newSlug) || newSlug == Note.Id)
+        {
+            _renaming = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        _renaming = false;
+        await Mediator.Send(new RenameNoteCommand(Note.FilePath, newSlug, VaultPath));
+        await OnSaved.InvokeAsync();
+    }
+
     private async Task DeleteAsync()
     {
         _showConfirm = false;
         await Mediator.Send(new DeleteNoteCommand(Note.FilePath));
         await OnSaved.InvokeAsync();
+    }
+
+    private static string RenderTitleLinks(string title) =>
+        System.Text.RegularExpressions.Regex.Replace(title, @"\[\[([^\]]+)\]\]", m =>
+        {
+            var link = m.Groups[1].Value;
+            var encoded = System.Net.WebUtility.HtmlEncode(link);
+            return $"<span class=\"wiki-link\" data-wikilink=\"{encoded}\">{encoded}</span>";
+        });
+
+    private static string StripLeadingH1(string content)
+    {
+        if (!content.StartsWith("# ") && !content.StartsWith("#\t")) return content;
+        var nl = content.IndexOf('\n');
+        return nl < 0 ? string.Empty : content[(nl + 1)..].TrimStart('\r', '\n');
     }
 
     public void Dispose()

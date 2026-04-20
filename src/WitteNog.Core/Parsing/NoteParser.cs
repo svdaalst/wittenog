@@ -15,6 +15,13 @@ public class NoteParser
         return match.Success ? match.Groups[1].Value.Trim() : string.Empty;
     }
 
+    public string StripLeadingH1(string markdown)
+    {
+        if (!markdown.StartsWith("# ") && !markdown.StartsWith("#\t")) return markdown;
+        var nl = markdown.IndexOf('\n');
+        return nl < 0 ? string.Empty : markdown[(nl + 1)..].TrimStart('\r', '\n');
+    }
+
     public string GenerateSlug(string title) =>
         SlugInvalidChars.Replace(title.ToLowerInvariant(), "-").Trim('-');
 

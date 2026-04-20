@@ -10,6 +10,8 @@ public sealed class EditModeCoordinatorService
 
     public string? ActiveNoteId { get; private set; }
 
+    public bool IsInEditMode => ActiveNoteId != null;
+
     /// <summary>
     /// Request edit mode for <paramref name="noteId"/>.
     /// If another note is currently editing, its save callback is awaited first.

@@ -3,6 +3,8 @@
 @inject VaultWatcherService Watcher
 @inject ILinkMetadataService MetadataService
 @inject VaultContextService VaultContext
+@inject EditModeCoordinatorService EditModeCoordinator
+@inject IJSRuntime JS
 @implements IDisposable
 @using MediatR
 @using System.Text.RegularExpressions
@@ -151,8 +153,13 @@
         return result.AsReadOnly();
     }
 
-    private void Navigate(string link)
+    private async Task Navigate(string link)
     {
+        if (EditModeCoordinator.IsInEditMode)
+        {
+            await JS.InvokeVoidAsync("alert", "Sla eerst op of annuleer de bewerking voordat je navigeert.");
+            return;
+        }
         var type = DateRegex.IsMatch(link) ? TabType.DailyPage : TabType.TopicPage;
         NavService.OpenTab(type, link);
     }
@@ -170,8 +177,14 @@
 
     private void ToggleVaultDropdown() => _vaultDropdownOpen = !_vaultDropdownOpen;
 
-    private void SwitchVault(string path)
+    private async Task SwitchVault(string path)
     {
+        if (EditModeCoordinator.IsInEditMode)
+        {
+            _vaultDropdownOpen = false;
+            await JS.InvokeVoidAsync("alert", "Sla eerst op of annuleer de bewerking voordat je van vault wisselt.");
+            return;
+        }
         _vaultDropdownOpen = false;
         if (path == VaultContext.VaultPath) return;
         VaultContext.SetVaultPath(path);

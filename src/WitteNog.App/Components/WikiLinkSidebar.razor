@@ -15,75 +15,83 @@
 @using WitteNog.Core.Events
 @using WitteNog.Core.Interfaces
 
-<div class="sidebar @(IsOpen ? "open" : "")">
-    <div class="sidebar-search">
-        <input @bind="_search" @bind:event="oninput" placeholder="Zoeken..." />
+<div class="sidebar @(IsCollapsed ? "collapsed" : "")">
+    <div class="sidebar-header">
+        <button class="hamburger-btn" @onclick="OnToggleCollapsed" title="Menu">☰</button>
+        <input class="sidebar-search-input" @bind="_search" @bind:event="oninput" placeholder="Zoeken..." />
+        <button class="sidebar-icon-btn" @onclick="OnOpenTasks" title="Taken">☑</button>
+        <button class="sidebar-icon-btn" @onclick="OnOpenSettings" title="Instellingen">⚙</button>
     </div>
-    <div class="sidebar-tree">
-        @foreach (var node in FilteredActiveTopics)
-        {
-            <SidebarNode Node="@node" Expanded="_expanded" OnNavigate="Navigate"
-                         ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
-        }
-        @if (_dates != null)
-        {
-            <SidebarNode Node="@_dates" Expanded="_expanded" OnNavigate="Navigate"
-                         ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
-        }
-        @if (FilteredArchivedTopics.Count > 0)
-        {
-            <div class="tree-node">
-                <div class="tree-node-label folder archive-header" @onclick="ToggleArchiveSection">
-                    <span class="tree-toggle">@(_archiveSectionExpanded ? "▾" : "▸")</span>
-                    <span>📦 Archief</span>
+    <div class="sidebar-body">
+        <div class="sidebar-tree">
+            @foreach (var node in FilteredActiveTopics)
+            {
+                <SidebarNode Node="@node" Expanded="_expanded" OnNavigate="Navigate"
+                             ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+            }
+            @if (_dates != null)
+            {
+                <SidebarNode Node="@_dates" Expanded="_expanded" OnNavigate="Navigate"
+                             ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+            }
+            @if (FilteredArchivedTopics.Count > 0)
+            {
+                <div class="tree-node">
+                    <div class="tree-node-label folder archive-header" @onclick="ToggleArchiveSection">
+                        <span class="tree-toggle">@(_archiveSectionExpanded ? "▾" : "▸")</span>
+                        <span>📦 Archief</span>
+                    </div>
+                    @if (_archiveSectionExpanded)
+                    {
+                        <div class="tree-node-children">
+                            @foreach (var node in FilteredArchivedTopics)
+                            {
+                                <SidebarNode Node="@node" Expanded="_expanded" OnNavigate="Navigate"
+                                             ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+                            }
+                        </div>
+                    }
                 </div>
-                @if (_archiveSectionExpanded)
+            }
+            <div class="tree-node">
+                <div class="tree-node-label leaf orphan-link" @onclick="OpenOrphanPage">
+                    <span>🔗 Notities zonder links</span>
+                </div>
+            </div>
+        </div>
+        <SidebarTaskPanel VaultPath="@VaultPath" />
+
+        @if (VaultContext.VaultPaths.Count > 1)
+        {
+            <div class="vault-switcher">
+                <button class="vault-switcher-btn" @onclick="ToggleVaultDropdown">
+                    <span class="vault-switcher-name">@CurrentVaultName</span>
+                    <span class="vault-switcher-arrow">@(_vaultDropdownOpen ? "▴" : "▾")</span>
+                </button>
+                @if (_vaultDropdownOpen)
                 {
-                    <div class="tree-node-children">
-                        @foreach (var node in FilteredArchivedTopics)
+                    <div class="vault-dropdown">
+                        @foreach (var path in VaultContext.VaultPaths)
                         {
-                            <SidebarNode Node="@node" Expanded="_expanded" OnNavigate="Navigate"
-                                         ArchivedLinks="_archivedLinks" OnToggleArchive="ToggleArchive" />
+                            var p = path;
+                            <button class="vault-dropdown-item @(p == VaultContext.VaultPath ? "active" : "")"
+                                    @onclick="() => SwitchVault(p)">
+                                @VaultDisplayName(p)
+                            </button>
                         }
                     </div>
                 }
             </div>
         }
-        <div class="tree-node">
-            <div class="tree-node-label leaf orphan-link" @onclick="OpenOrphanPage">
-                <span>🔗 Notities zonder links</span>
-            </div>
-        </div>
     </div>
-    <SidebarTaskPanel VaultPath="@VaultPath" />
-
-    @if (VaultContext.VaultPaths.Count > 1)
-    {
-        <div class="vault-switcher">
-            <button class="vault-switcher-btn" @onclick="ToggleVaultDropdown">
-                <span class="vault-switcher-name">@CurrentVaultName</span>
-                <span class="vault-switcher-arrow">@(_vaultDropdownOpen ? "▴" : "▾")</span>
-            </button>
-            @if (_vaultDropdownOpen)
-            {
-                <div class="vault-dropdown">
-                    @foreach (var path in VaultContext.VaultPaths)
-                    {
-                        var p = path;
-                        <button class="vault-dropdown-item @(p == VaultContext.VaultPath ? "active" : "")"
-                                @onclick="() => SwitchVault(p)">
-                            @VaultDisplayName(p)
-                        </button>
-                    }
-                </div>
-            }
-        </div>
-    }
 </div>
 
 @code {
     [Parameter] public string VaultPath { get; set; } = string.Empty;
-    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public bool IsCollapsed { get; set; }
+    [Parameter] public EventCallback OnToggleCollapsed { get; set; }
+    [Parameter] public EventCallback OnOpenTasks { get; set; }
+    [Parameter] public EventCallback OnOpenSettings { get; set; }
 
     private static readonly Regex DateRegex = new(@"^\d{4}-\d{2}-\d{2}$", RegexOptions.Compiled);
 

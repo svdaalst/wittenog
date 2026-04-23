@@ -35,13 +35,14 @@ html, body {
    ============================================================ */
 .app-shell {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100vh;
     overflow: hidden;
 }
 
-.content-area {
+.right-panel {
     display: flex;
+    flex-direction: column;
     flex: 1;
     overflow: hidden;
 }
@@ -57,33 +58,74 @@ html, body {
    ============================================================ */
 .sidebar {
     width: 260px;
-    min-width: 180px;
+    min-width: 260px;
     background: var(--surface);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
+    transition: width 0.2s ease, min-width 0.2s ease;
 }
 
-.sidebar-search {
-    padding: 10px 10px 8px;
+.sidebar.collapsed {
+    width: 44px;
+    min-width: 44px;
+}
+
+/* Sidebar header: hamburger + search + icon buttons */
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 6px;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
-.sidebar-search input {
-    width: 100%;
+.sidebar-search-input {
+    flex: 1;
+    min-width: 0;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 5px 8px;
     font-size: 13px;
     color: var(--text);
     outline: none;
     transition: border-color 0.15s;
 }
-.sidebar-search input:focus { border-color: var(--accent); }
-.sidebar-search input::placeholder { color: var(--text-muted); }
+.sidebar-search-input:focus { border-color: var(--accent); }
+.sidebar-search-input::placeholder { color: var(--text-muted); }
+
+.sidebar-icon-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 15px;
+    padding: 4px 5px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.15s;
+    border-radius: var(--radius);
+}
+.sidebar-icon-btn:hover { color: var(--text); }
+
+/* Hide search + icon buttons + body content when collapsed */
+.sidebar.collapsed .sidebar-search-input,
+.sidebar.collapsed .sidebar-icon-btn,
+.sidebar.collapsed .sidebar-body {
+    display: none;
+}
+
+/* Sidebar body: tree + tasks + vault switcher */
+.sidebar-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
 
 .sidebar-tree {
     flex: 1;
@@ -1131,26 +1173,8 @@ html, body {
 }
 
 /* ============================================================
-   Top bar (tab bar + settings button)
+   Top bar (now: right-panel tab bar area)
    ============================================================ */
-.top-bar {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.settings-btn {
-    flex-shrink: 0;
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 18px;
-    padding: 4px 10px;
-    cursor: pointer;
-    line-height: 1;
-    transition: color 0.15s;
-}
-.settings-btn:hover { color: var(--text); }
 
 /* ============================================================
    Onboarding page
@@ -1769,23 +1793,25 @@ html, body {
 }
 
 /* ============================================================
-   Hamburger button (hidden on desktop, shown on mobile)
+   Hamburger button (always visible — lives in sidebar header)
    ============================================================ */
 .hamburger-btn {
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     background: none;
     border: none;
-    color: var(--text);
+    color: var(--text-muted);
     font-size: 18px;
-    padding: 0 10px;
-    height: var(--tab-h);
+    padding: 4px 4px;
     cursor: pointer;
     flex-shrink: 0;
+    border-radius: var(--radius);
+    transition: color 0.15s;
 }
+.hamburger-btn:hover { color: var(--text); }
 
-/* Sidebar overlay (hidden on desktop) */
+/* Sidebar overlay no longer used */
 .sidebar-overlay {
     display: none;
 }
@@ -1800,42 +1826,10 @@ html, body {
    ============================================================ */
 @media (max-width: 700px) {
 
-    /* Show hamburger */
-    .hamburger-btn { display: flex; }
-
-    /* Sidebar becomes a slide-out drawer */
-    .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        z-index: 200;
-        width: 280px;
-        min-width: unset;
-        transform: translateX(-100%);
-        transition: transform 0.25s ease;
-        border-right: none;
-        box-shadow: 4px 0 20px rgba(0,0,0,0);
-    }
-    .sidebar.open {
-        transform: translateX(0);
-        box-shadow: 4px 0 20px rgba(0,0,0,0.5);
-    }
-
-    /* Semi-transparent backdrop behind open drawer */
-    .sidebar-overlay {
-        display: block;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.45);
-        z-index: 199;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.25s ease;
-    }
-    .sidebar-overlay.visible {
-        opacity: 1;
-        pointer-events: all;
+    /* Sidebar collapses to icon-only strip on small screens */
+    .sidebar:not(.collapsed) {
+        width: 200px;
+        min-width: 200px;
     }
 
     /* Larger touch targets */

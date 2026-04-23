@@ -30,6 +30,10 @@ public class NavigationService : INavigationService
             var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
             OpenNewTab(TabType.DailyPage, today);
         }
+        else
+        {
+            OpenNewTab(TabType.TasksPage, "Taken");
+        }
     }
 
     public void OpenTab(TabType type, string query)

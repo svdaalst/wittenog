@@ -22,8 +22,10 @@ public static class MarkdownRenderer
     /// Renders markdown to HTML. WikiLinks become clickable spans with data-wikilink attributes.
     /// Audio file links become spans with data-audiolink attributes (opened via the OS).
     /// When filePath is provided, unchecked task checkboxes become clickable buttons.
+    /// lineOffset must equal the number of lines stripped from the top of the original file
+    /// (e.g. the H1 + trailing blank lines) so that task IDs reference the correct file line.
     /// </summary>
-    public static string Render(string markdown, string? filePath = null)
+    public static string Render(string markdown, string? filePath = null, int lineOffset = 0)
     {
         // Replace unchecked task checkboxes with clickable buttons BEFORE Markdig processes the text.
         // Line indices must match those used by TaskParser (which calls File.ReadAllLines).
@@ -38,7 +40,7 @@ public static class MarkdownRenderer
                 var trimmed = bare.TrimStart();
                 if (trimmed.StartsWith("- [ ]") || trimmed.StartsWith("* [ ]"))
                     lines[i] = lines[i].Replace("[ ]",
-                        $"<button class=\"inline-task-btn\" data-action=\"complete-inline\" data-taskid=\"{encodedPath}:{i}\">☐</button>");
+                        $"<button class=\"inline-task-btn\" data-action=\"complete-inline\" data-taskid=\"{encodedPath}:{i + lineOffset}\">☐</button>");
             }
             preprocessed = string.Join('\n', lines);
         }

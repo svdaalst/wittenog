@@ -127,9 +127,9 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('OpenAudioFile', audioTarget.dataset.audiolink);
                 return;
             }
-            // Handle note actions
+            // Handle note actions — but NOT 'edit', which requires a double-click
             const actionTarget = e.target.closest('[data-action]');
-            if (actionTarget) {
+            if (actionTarget && actionTarget.dataset.action !== 'edit') {
                 e.stopPropagation();
                 dotNetRef.invokeMethodAsync('HandleNoteAction',
                     actionTarget.dataset.action,
@@ -140,6 +140,14 @@ window.NoteBlockDelegate = {
             if (e.target.closest('.note-title-bar')) {
                 e.stopPropagation();
                 element.classList.toggle('note-collapsed');
+            }
+        });
+        // Double-click on note content enters edit mode
+        element.addEventListener('dblclick', (e) => {
+            const actionTarget = e.target.closest('[data-action="edit"]');
+            if (actionTarget) {
+                e.stopPropagation();
+                dotNetRef.invokeMethodAsync('HandleNoteAction', 'edit', '');
             }
         });
     }

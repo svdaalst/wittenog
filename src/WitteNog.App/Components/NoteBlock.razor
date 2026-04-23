@@ -23,22 +23,26 @@
     {
         <div class="note-title-bar">
             <span class="note-title">@((MarkupString)RenderTitleLinks(string.IsNullOrEmpty(Note.Title) ? Note.Id : Note.Title))</span>
-            <button class="note-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+            @if (_editing)
+            {
+                <button class="note-edit-save" data-action="save" title="Opslaan">Opslaan</button>
+                <button class="note-edit-cancel" data-action="cancel" title="Annuleren">Annuleren</button>
+            }
+            else
+            {
+                <button class="note-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+            }
         </div>
     }
 
     @if (_editing)
     {
         <TipTapEditor @ref="_editor" InitialContent="@StripLeadingH1(Note.Content)" />
-        <div class="note-actions">
-            <button data-action="save">Opslaan</button>
-            <button data-action="cancel">Annuleren</button>
-        </div>
     }
     else
     {
         <div class="note-content" data-action="edit">
-            @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath))
+            @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content)))
         </div>
         @if (!_renaming)
         {
@@ -254,6 +258,19 @@
         if (!content.StartsWith("# ") && !content.StartsWith("#\t")) return content;
         var nl = content.IndexOf('\n');
         return nl < 0 ? string.Empty : content[(nl + 1)..].TrimStart('\r', '\n');
+    }
+
+    // Returns the number of file lines removed by StripLeadingH1 so that task-button
+    // line numbers stay in sync with the actual file (H1 line + any trailing blank lines).
+    private static int GetH1LineOffset(string content)
+    {
+        if (!content.StartsWith("# ") && !content.StartsWith("#\t")) return 0;
+        var nl = content.IndexOf('\n');
+        if (nl < 0) return 1;
+        var afterNl = content[(nl + 1)..];
+        var trimmed = afterNl.TrimStart('\r', '\n');
+        var removedPrefix = afterNl[..(afterNl.Length - trimmed.Length)];
+        return 1 + removedPrefix.Count(c => c == '\n');
     }
 
     public void Dispose()

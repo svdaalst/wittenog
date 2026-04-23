@@ -23,17 +23,21 @@
     {
         <div class="note-title-bar">
             <span class="note-title">@((MarkupString)RenderTitleLinks(string.IsNullOrEmpty(Note.Title) ? Note.Id : Note.Title))</span>
-            <button class="note-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+            @if (_editing)
+            {
+                <button class="note-edit-save" data-action="save" title="Opslaan">Opslaan</button>
+                <button class="note-edit-cancel" data-action="cancel" title="Annuleren">Annuleren</button>
+            }
+            else
+            {
+                <button class="note-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+            }
         </div>
     }
 
     @if (_editing)
     {
         <TipTapEditor @ref="_editor" InitialContent="@StripLeadingH1(Note.Content)" />
-        <div class="note-actions">
-            <button data-action="save">Opslaan</button>
-            <button data-action="cancel">Annuleren</button>
-        </div>
     }
     else
     {

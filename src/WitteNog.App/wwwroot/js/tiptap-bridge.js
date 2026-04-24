@@ -294,7 +294,68 @@ window.TipTapBridge = {
         const editor = this.editors[elementId];
         if (!editor) return '';
         if (editor.isFallback) return editor.el.value;
-        return editor.getText ? editor.getText() : editor.getHTML();
+        return this._toMarkdown(editor.getJSON());
+    },
+
+    _inlineText(node) {
+        if (node.type === 'text') {
+            let t = node.text || '';
+            for (const m of (node.marks || [])) {
+                if (m.type === 'bold')   t = `**${t}**`;
+                if (m.type === 'italic') t = `*${t}*`;
+                if (m.type === 'code')   t = `\`${t}\``;
+            }
+            return t;
+        }
+        return (node.content || []).map(n => this._inlineText(n)).join('');
+    },
+
+    _toMarkdown(doc) {
+        const parts = [];
+        for (const node of (doc.content || [])) {
+            switch (node.type) {
+                case 'heading': {
+                    const hashes = '#'.repeat(node.attrs?.level || 1);
+                    const text = (node.content || []).map(n => this._inlineText(n)).join('');
+                    parts.push(`${hashes} ${text}`);
+                    break;
+                }
+                case 'paragraph': {
+                    const text = (node.content || []).map(n => this._inlineText(n)).join('');
+                    parts.push(text);
+                    break;
+                }
+                case 'bulletList': {
+                    for (const item of (node.content || [])) {
+                        const text = (item.content || []).flatMap(p => (p.content || []).map(n => this._inlineText(n))).join('');
+                        parts.push(`- ${text}`);
+                    }
+                    break;
+                }
+                case 'orderedList': {
+                    (node.content || []).forEach((item, i) => {
+                        const text = (item.content || []).flatMap(p => (p.content || []).map(n => this._inlineText(n))).join('');
+                        parts.push(`${i + 1}. ${text}`);
+                    });
+                    break;
+                }
+                case 'blockquote': {
+                    const text = (node.content || []).flatMap(p => (p.content || []).map(n => this._inlineText(n))).join('');
+                    parts.push(`> ${text}`);
+                    break;
+                }
+                case 'codeBlock': {
+                    const text = (node.content || []).map(n => n.text || '').join('');
+                    const lang = node.attrs?.language || '';
+                    parts.push(`\`\`\`${lang}\n${text}\n\`\`\``);
+                    break;
+                }
+                case 'horizontalRule':
+                    parts.push('---');
+                    break;
+            }
+        }
+        return parts.join('\n\n');
     },
 
     destroy(elementId) {

@@ -41,9 +41,16 @@
     }
     else
     {
-        <div class="note-content" data-action="edit">
-            @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content)))
-        </div>
+        @if (string.IsNullOrWhiteSpace(StripLeadingH1(Note.Content)))
+        {
+            <div class="note-content note-content-empty" data-action="edit-click">✎ Klik om te bewerken</div>
+        }
+        else
+        {
+            <div class="note-content" data-action="edit">
+                @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content)))
+            </div>
+        }
         @if (!_renaming)
         {
             <div class="note-actions-bar">
@@ -60,8 +67,8 @@
                 <h3>Notitie verwijderen?</h3>
                 <p class="modal-body">@Note.Id</p>
                 <div class="modal-actions">
-                    <button data-action="delete">Verwijderen</button>
-                    <button data-action="cancel-delete">Annuleren</button>
+                    <button class="modal-btn-primary" data-action="delete">Verwijderen</button>
+                    <button class="modal-btn-secondary" data-action="cancel-delete">Annuleren</button>
                 </div>
             </div>
         </div>
@@ -150,6 +157,7 @@
                     Console.Error.WriteLine($"Taak voltooien mislukt: {ex.Message}");
                 }
                 return;
+            case "edit-click":
             case "edit":
                 if (!_editing)
                 {
@@ -157,7 +165,7 @@
                     {
                         if (_editor != null)
                         {
-                            var content = await _editor.GetContentAsync();
+                            var content = await GetFullContentAsync();
                             await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
                         }
                         _editing = false;
@@ -213,10 +221,18 @@
         }
     }
 
+    private async Task<string> GetFullContentAsync()
+    {
+        var raw = await _editor!.GetContentAsync();
+        return string.IsNullOrEmpty(Note.Title)
+            ? raw
+            : $"# {Note.Title}\n\n{raw}";
+    }
+
     private async Task SaveAsync()
     {
         if (_editor == null) return;
-        var content = await _editor.GetContentAsync();
+        var content = await GetFullContentAsync();
         await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
         _editing = false;
         EditModeCoordinator.ExitEditMode(Note.Id);

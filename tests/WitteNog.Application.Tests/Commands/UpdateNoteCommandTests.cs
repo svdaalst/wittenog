@@ -54,7 +54,7 @@ public class UpdateNoteCommandTests
 
         Assert.Equal(2, repo.All.Count);
         Assert.Contains(repo.All, n => n.Id == "combined");
-        Assert.Contains(repo.All, n => n.Id == "sectie-twee");
+        Assert.Contains(repo.All, n => n.Id == "combined-sectie-twee");
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class UpdateNoteCommandTests
     }
 
     [Fact]
-    public async Task Handle_MultipleHeadings_NewFileHasNoBackLinkToOriginal()
+    public async Task Handle_MultipleHeadings_NewFileHasWikiLinkBackToOriginal()
     {
         var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
         var mediator = BuildMediator(repo);
@@ -81,8 +81,9 @@ public class UpdateNoteCommandTests
             NoteFile("combined.md"),
             "# Eerste\n\nBody.\n\n# Tweede\n\nMeer."));
 
-        var newNote = repo.All.First(n => n.Id == "tweede");
-        Assert.DoesNotContain("[[combined]]", newNote.Content);
+        var newNote = repo.All.First(n => n.Id == "combined-tweede");
+        Assert.Contains("[[combined]]", newNote.Content);
+        Assert.Contains("combined", newNote.WikiLinks);
     }
 
     [Fact]
@@ -112,8 +113,8 @@ public class UpdateNoteCommandTests
 
         var newNote = repo.All.First(n => n.Id == "2026-03-19-tweede");
         Assert.StartsWith("2026-03-19-", newNote.Id);
-        Assert.Equal("[[2026-03-19]]-Tweede", newNote.Title);
-        Assert.StartsWith("# [[2026-03-19]]-Tweede", newNote.Content);
+        Assert.Equal("[[2026-03-19]] Tweede", newNote.Title);
+        Assert.StartsWith("# [[2026-03-19]] Tweede", newNote.Content);
     }
 
     [Fact]
@@ -128,12 +129,12 @@ public class UpdateNoteCommandTests
             TabQuery: "2026-03-19"));
 
         var newNote = repo.All.First(n => n.Id == "2026-03-19-tweede");
-        Assert.StartsWith("# [[2026-03-19]]-Tweede", newNote.Content);
+        Assert.StartsWith("# [[2026-03-19]] Tweede", newNote.Content);
         Assert.Contains("2026-03-19", newNote.WikiLinks);
     }
 
     [Fact]
-    public async Task Handle_WithoutTabQuery_NewFileHasNoWikiLinks()
+    public async Task Handle_WithoutTabQuery_NewFileHasWikiLinkToParent()
     {
         var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
         var mediator = BuildMediator(repo);
@@ -142,15 +143,15 @@ public class UpdateNoteCommandTests
             NoteFile("combined.md"),
             "# Eerste\n\nBody.\n\n# Tweede\n\nMeer."));
 
-        var newNote = repo.All.First(n => n.Id == "tweede");
-        Assert.Empty(newNote.WikiLinks);
+        var newNote = repo.All.First(n => n.Id == "combined-tweede");
+        Assert.Contains("combined", newNote.WikiLinks);
     }
 
     [Fact]
     public async Task Handle_MultipleHeadings_SkipsExistingFile()
     {
         var existing = new AtomicNote(
-            "sectie-twee", NoteFile("sectie-twee.md"), "Sectie Twee",
+            "combined-sectie-twee", NoteFile("combined-sectie-twee.md"), "Sectie Twee",
             "# Sectie Twee\n\nOriginele inhoud.",
             Array.Empty<string>(), DateTimeOffset.UtcNow);
         var repo = new FakeNoteRepository(new[] { existing });
@@ -160,7 +161,7 @@ public class UpdateNoteCommandTests
             NoteFile("combined.md"),
             "# Sectie Een\n\nA.\n\n# Sectie Twee\n\nB."));
 
-        var sectionTwo = repo.All.First(n => n.Id == "sectie-twee");
+        var sectionTwo = repo.All.First(n => n.Id == "combined-sectie-twee");
         Assert.Contains("Originele inhoud", sectionTwo.Content);
     }
 
@@ -175,9 +176,9 @@ public class UpdateNoteCommandTests
             "# Hoofd\n\nA.\n\n# Sub Een\n\nB.\n\n# Sub Twee\n\nC."));
 
         Assert.Equal(3, repo.All.Count);
-        var subEen = repo.All.First(n => n.Id == "sub-een");
-        var subTwee = repo.All.First(n => n.Id == "sub-twee");
-        Assert.DoesNotContain("[[main]]", subEen.Content);
-        Assert.DoesNotContain("[[main]]", subTwee.Content);
+        var subEen = repo.All.First(n => n.Id == "main-sub-een");
+        var subTwee = repo.All.First(n => n.Id == "main-sub-twee");
+        Assert.Contains("[[main]]", subEen.Content);
+        Assert.Contains("[[main]]", subTwee.Content);
     }
 }

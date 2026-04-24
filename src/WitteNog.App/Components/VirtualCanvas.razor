@@ -37,7 +37,9 @@ else
             </button>
             @if (Tab.Type != TabType.OrphanPage)
             {
-                <NewNoteButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnNoteCreated="RefreshAsync" />
+                <NewNoteButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnNoteCreated="RefreshAsync"
+                               ShowCreateDefNote="@(Tab.Type == TabType.TopicPage && !_hasDefNote)"
+                               OnDefNoteCreated="RefreshAsync" />
                 <NewFlowButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnFlowCreated="RefreshAsync" />
             }
         </div>
@@ -96,6 +98,7 @@ else
 
     private IReadOnlyList<VaultBlock>? _blocks;
     private bool _isArchived;
+    private bool _hasDefNote;
     private string? _error;
     private ElementReference _canvasEl;
     private bool _allCollapsed;
@@ -166,6 +169,7 @@ else
                 .Concat(flows.Select(VaultBlock.FromFlow))
                 .OrderBy(b => b.Id, StringComparer.OrdinalIgnoreCase);
 
+            _hasDefNote = defNote is not null;
             _blocks = defNote is not null
                 ? new[] { VaultBlock.FromNote(defNote) }.Concat(remaining).ToList()
                 : remaining.ToList();

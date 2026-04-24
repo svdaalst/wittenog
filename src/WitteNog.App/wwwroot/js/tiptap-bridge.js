@@ -150,6 +150,24 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleNoteAction', 'edit', '');
             }
         });
+        // Image paste: save to vault and insert markdown image syntax
+        element.addEventListener('paste', async (e) => {
+            const items = Array.from(e.clipboardData?.items || []);
+            const imageItem = items.find(i => i.type.startsWith('image/'));
+            if (!imageItem) return;
+            const editorEl = element.querySelector('.tiptap-editor');
+            if (!editorEl) return;
+            e.preventDefault();
+            const blob = imageItem.getAsFile();
+            const ext = imageItem.type.split('/')[1] || 'png';
+            const base64 = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(blob);
+            });
+            const relativePath = await dotNetRef.invokeMethodAsync('SavePastedImageAsync', base64, ext);
+            TipTapBridge.insertMarkdown(editorEl.id, `![](${relativePath})`);
+        });
     }
 };
 
@@ -288,6 +306,12 @@ window.TipTapBridge = {
                 },
             },
         });
+    },
+
+    insertMarkdown(elementId, text) {
+        const editor = this.editors[elementId];
+        if (!editor || editor.isFallback) return;
+        editor.commands.insertContent({ type: 'text', text });
     },
 
     getContent(elementId) {

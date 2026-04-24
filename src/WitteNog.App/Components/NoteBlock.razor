@@ -261,6 +261,20 @@
         await OnSaved.InvokeAsync();
     }
 
+    [JSInvokable]
+    public async Task<string> SavePastedImageAsync(string base64Data, string extension)
+    {
+        var attachmentsDir = Path.Combine(VaultPath, "attachments");
+        Directory.CreateDirectory(attachmentsDir);
+        var ext = extension.ToLowerInvariant() == "jpeg" ? "jpg" : extension.ToLowerInvariant();
+        int n = 1;
+        string filePath;
+        do { filePath = Path.Combine(attachmentsDir, $"{Note.Id}-{n}.{ext}"); n++; }
+        while (File.Exists(filePath));
+        await File.WriteAllBytesAsync(filePath, Convert.FromBase64String(base64Data));
+        return $"attachments/{Path.GetFileName(filePath)}";
+    }
+
     private static string RenderTitleLinks(string title) =>
         System.Text.RegularExpressions.Regex.Replace(title, @"\[\[([^\]]+)\]\]", m =>
         {

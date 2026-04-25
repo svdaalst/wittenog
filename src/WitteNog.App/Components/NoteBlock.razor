@@ -262,17 +262,91 @@
     }
 
     [JSInvokable]
-    public async Task<string> SavePastedImageAsync(string base64Data, string extension)
+    public async Task<string?> SaveClipboardImageAsync()
     {
-        var attachmentsDir = Path.Combine(VaultPath, "attachments");
-        Directory.CreateDirectory(attachmentsDir);
-        var ext = extension.ToLowerInvariant() == "jpeg" ? "jpg" : extension.ToLowerInvariant();
-        int n = 1;
-        string filePath;
-        do { filePath = Path.Combine(attachmentsDir, $"{Note.Id}-{n}.{ext}"); n++; }
-        while (File.Exists(filePath));
-        await File.WriteAllBytesAsync(filePath, Convert.FromBase64String(base64Data));
-        return $"attachments/{Path.GetFileName(filePath)}";
+#if WINDOWS
+        try
+        {
+            // GetContent() has STA affinity — use sync lambda (async lambda breaks clipboard access)
+            Windows.ApplicationModel.DataTransfer.DataPackageView? content = null;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+                content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent());
+
+            if (content == null) return null;
+
+            byte[]? pngBytes = null;
+
+            // Try PNG format first (raw bytes, no conversion needed)
+            if (content.Contains("PNG"))
+            {
+                try
+                {
+                    var obj = await content.GetDataAsync("PNG");
+                    if (obj is Windows.Storage.Streams.IRandomAccessStream ras1)
+                    {
+                        var sz = (int)ras1.Size;
+                        var buf = new byte[sz];
+                        using var dr = new Windows.Storage.Streams.DataReader(ras1);
+                        await dr.LoadAsync((uint)sz);
+                        dr.ReadBytes(buf);
+                        pngBytes = buf;
+                    }
+                    else if (obj is Windows.Storage.Streams.RandomAccessStreamReference ras2)
+                    {
+                        using var stream = await ras2.OpenReadAsync();
+                        var sz = (int)stream.Size;
+                        var buf = new byte[sz];
+                        using var dr = new Windows.Storage.Streams.DataReader(stream);
+                        await dr.LoadAsync((uint)sz);
+                        dr.ReadBytes(buf);
+                        pngBytes = buf;
+                    }
+                }
+                catch { /* fall through to Bitmap */ }
+            }
+
+            // Fallback: Bitmap format → decode and re-encode as PNG
+            if (pngBytes == null && content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Bitmap))
+            {
+                try
+                {
+                    var streamRef = await content.GetBitmapAsync();
+                    using var ras = await streamRef.OpenReadAsync();
+                    var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(ras);
+                    var softBitmap = await decoder.GetSoftwareBitmapAsync();
+                    using var pngStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                    var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
+                        Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, pngStream);
+                    encoder.SetSoftwareBitmap(softBitmap);
+                    await encoder.FlushAsync();
+                    var sz = (int)pngStream.Size;
+                    var buf = new byte[sz];
+                    using var dr = new Windows.Storage.Streams.DataReader(pngStream.GetInputStreamAt(0));
+                    await dr.LoadAsync((uint)sz);
+                    dr.ReadBytes(buf);
+                    pngBytes = buf;
+                }
+                catch { /* no image on clipboard */ }
+            }
+
+            if (pngBytes == null) return null;
+
+            var attachmentsDir = Path.Combine(VaultPath, "attachments");
+            Directory.CreateDirectory(attachmentsDir);
+            int n = 1;
+            string filePath;
+            do { filePath = Path.Combine(attachmentsDir, $"{Note.Id}-{n}.png"); n++; }
+            while (File.Exists(filePath));
+            await File.WriteAllBytesAsync(filePath, pngBytes);
+            return $"attachments/{Path.GetFileName(filePath)}";
+        }
+        catch
+        {
+            return null;
+        }
+#else
+        return null;
+#endif
     }
 
     private static string RenderTitleLinks(string title) =>

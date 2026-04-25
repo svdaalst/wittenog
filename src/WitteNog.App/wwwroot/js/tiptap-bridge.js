@@ -150,24 +150,8 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleNoteAction', 'edit', '');
             }
         });
-        // Image paste: save to vault and insert markdown image syntax
-        element.addEventListener('paste', async (e) => {
-            const items = Array.from(e.clipboardData?.items || []);
-            const imageItem = items.find(i => i.type.startsWith('image/'));
-            if (!imageItem) return;
-            const editorEl = element.querySelector('.tiptap-editor');
-            if (!editorEl) return;
-            e.preventDefault();
-            const blob = imageItem.getAsFile();
-            const ext = imageItem.type.split('/')[1] || 'png';
-            const base64 = await new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.readAsDataURL(blob);
-            });
-            const relativePath = await dotNetRef.invokeMethodAsync('SavePastedImageAsync', base64, ext);
-            TipTapBridge.insertMarkdown(editorEl.id, `![](${relativePath})`);
-        });
+        // Store dotNetRef so TipTapBridge paste handler can retrieve it
+        element._noteBlockRef = dotNetRef;
     }
 };
 
@@ -273,6 +257,25 @@ window.WikiLinkDelegate = {
 
 window.TipTapBridge = {
     editors: {},
+    _pasteHandlerAttached: false,
+
+    _ensurePasteHandler() {
+        if (this._pasteHandlerAttached) return;
+        this._pasteHandlerAttached = true;
+        // Use keydown Ctrl+V — more reliable than paste event in MAUI WebView2
+        document.addEventListener('keydown', async (e) => {
+            if (!(e.ctrlKey && e.key === 'v')) return;
+            const editorEl = document.querySelector('.note-block.editing .tiptap-editor');
+            if (!editorEl) return;
+            const elementId = editorEl.id;
+            const container = editorEl.closest('.note-block');
+            const dotNetRef = container?._noteBlockRef;
+            if (!dotNetRef) return;
+            const relativePath = await dotNetRef.invokeMethodAsync('SaveClipboardImageAsync');
+            if (!relativePath) return;
+            window.TipTapBridge.insertMarkdown(elementId, `![](${relativePath})`);
+        });
+    },
 
     init(elementId, initialContent) {
         const el = document.getElementById(elementId);
@@ -296,7 +299,7 @@ window.TipTapBridge = {
             return;
         }
 
-        this.editors[elementId] = new window.tiptap.Editor({
+        const editor = new window.tiptap.Editor({
             element: el,
             extensions: [window.tiptapStarterKit.StarterKit],
             content: initialContent,
@@ -306,12 +309,38 @@ window.TipTapBridge = {
                 },
             },
         });
+        this.editors[elementId] = editor;
+        this._ensurePasteHandler();
+
+        // Attach keydown directly on the contenteditable — guaranteed to receive keyboard events
+        const bridge = this;
+        editor.view.dom.addEventListener('keydown', async (e) => {
+            if (!(e.ctrlKey && e.key === 'v')) return;
+            const container = el.closest('.note-block');
+            const dotNetRef = container?._noteBlockRef;
+            if (!dotNetRef) return;
+            const relativePath = await dotNetRef.invokeMethodAsync('SaveClipboardImageAsync');
+            if (!relativePath) return;
+            bridge.insertMarkdown(elementId, `![](${relativePath})`);
+        });
     },
 
     insertMarkdown(elementId, text) {
         const editor = this.editors[elementId];
-        if (!editor || editor.isFallback) return;
-        editor.commands.insertContent({ type: 'text', text });
+        if (!editor) return;
+        if (editor.isFallback) {
+            // Fallback textarea: insert at cursor position
+            const ta = editor.el;
+            const pos = ta.selectionStart ?? ta.value.length;
+            ta.value = ta.value.slice(0, pos) + '\n' + text + '\n' + ta.value.slice(pos);
+            ta.selectionStart = ta.selectionEnd = pos + text.length + 2;
+            ta.dispatchEvent(new Event('input'));
+            return;
+        }
+        editor.chain().focus().insertContent({
+            type: 'paragraph',
+            content: [{ type: 'text', text }]
+        }).run();
     },
 
     getContent(elementId) {

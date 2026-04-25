@@ -18,6 +18,11 @@ public static class MarkdownRenderer
         new(@"<a href=""([^""]*\.(?:wav|mp3|ogg|m4a|flac))""[^>]*>(.*?)</a>",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Matches relative <img src="..."> to rewrite to file:/// so WebView2 can load vault images.
+    private static readonly Regex RelativeImgRegex =
+        new(@"<img([^>]*) src=""(?!https?://|file://|data:)([^""]+)""",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     /// <summary>
     /// Renders markdown to HTML. WikiLinks become clickable spans with data-wikilink attributes.
     /// Audio file links become spans with data-audiolink attributes (opened via the OS).
@@ -56,7 +61,28 @@ public static class MarkdownRenderer
         var html = Markdig.Markdown.ToHtml(withLinks, Pipeline);
 
         // Convert audio <a href> tags to spans so WebView2 doesn't navigate to them
-        return AudioLinkRegex.Replace(html, m =>
+        var afterAudio = AudioLinkRegex.Replace(html, m =>
             $"<span class=\"audio-link\" data-audiolink=\"{m.Groups[1].Value}\">{m.Groups[2].Value}</span>");
+
+        // Resolve relative <img src> to base64 data URIs so WebView2 can load vault images
+        // (file:/// URIs are blocked by WebView2's virtual host cross-origin policy)
+        if (filePath == null) return afterAudio;
+        var noteDir = Path.GetDirectoryName(filePath) ?? string.Empty;
+        return RelativeImgRegex.Replace(afterAudio, m =>
+        {
+            var attrs = m.Groups[1].Value;
+            var src = m.Groups[2].Value;
+            var abs = Path.GetFullPath(Path.Combine(noteDir, src));
+            if (!File.Exists(abs)) return m.Value; // leave as-is if file missing
+            try
+            {
+                var bytes = File.ReadAllBytes(abs);
+                var ext = Path.GetExtension(abs).TrimStart('.').ToLowerInvariant();
+                var mime = ext switch { "jpg" or "jpeg" => "image/jpeg", "gif" => "image/gif", "webp" => "image/webp", _ => "image/png" };
+                var b64 = Convert.ToBase64String(bytes);
+                return $"<img{attrs} src=\"data:{mime};base64,{b64}\"";
+            }
+            catch { return m.Value; }
+        });
     }
 }

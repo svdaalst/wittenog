@@ -41,9 +41,16 @@
     }
     else
     {
-        <div class="note-content" data-action="edit">
-            @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content)))
-        </div>
+        @if (string.IsNullOrWhiteSpace(StripLeadingH1(Note.Content)))
+        {
+            <div class="note-content note-content-empty" data-action="edit-click">✎ Klik om te bewerken</div>
+        }
+        else
+        {
+            <div class="note-content" data-action="edit">
+                @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content)))
+            </div>
+        }
         @if (!_renaming)
         {
             <div class="note-actions-bar">
@@ -60,8 +67,8 @@
                 <h3>Notitie verwijderen?</h3>
                 <p class="modal-body">@Note.Id</p>
                 <div class="modal-actions">
-                    <button data-action="delete">Verwijderen</button>
-                    <button data-action="cancel-delete">Annuleren</button>
+                    <button class="modal-btn-primary" data-action="delete">Verwijderen</button>
+                    <button class="modal-btn-secondary" data-action="cancel-delete">Annuleren</button>
                 </div>
             </div>
         </div>
@@ -150,6 +157,7 @@
                     Console.Error.WriteLine($"Taak voltooien mislukt: {ex.Message}");
                 }
                 return;
+            case "edit-click":
             case "edit":
                 if (!_editing)
                 {
@@ -157,7 +165,7 @@
                     {
                         if (_editor != null)
                         {
-                            var content = await _editor.GetContentAsync();
+                            var content = await GetFullContentAsync();
                             await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
                         }
                         _editing = false;
@@ -213,10 +221,18 @@
         }
     }
 
+    private async Task<string> GetFullContentAsync()
+    {
+        var raw = await _editor!.GetContentAsync();
+        return string.IsNullOrEmpty(Note.Title)
+            ? raw
+            : $"# {Note.Title}\n\n{raw}";
+    }
+
     private async Task SaveAsync()
     {
         if (_editor == null) return;
-        var content = await _editor.GetContentAsync();
+        var content = await GetFullContentAsync();
         await Mediator.Send(new UpdateNoteCommand(Note.FilePath, content, TabQuery));
         _editing = false;
         EditModeCoordinator.ExitEditMode(Note.Id);
@@ -243,6 +259,94 @@
         _showConfirm = false;
         await Mediator.Send(new DeleteNoteCommand(Note.FilePath));
         await OnSaved.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public async Task<string?> SaveClipboardImageAsync()
+    {
+#if WINDOWS
+        try
+        {
+            // GetContent() has STA affinity — use sync lambda (async lambda breaks clipboard access)
+            Windows.ApplicationModel.DataTransfer.DataPackageView? content = null;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+                content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent());
+
+            if (content == null) return null;
+
+            byte[]? pngBytes = null;
+
+            // Try PNG format first (raw bytes, no conversion needed)
+            if (content.Contains("PNG"))
+            {
+                try
+                {
+                    var obj = await content.GetDataAsync("PNG");
+                    if (obj is Windows.Storage.Streams.IRandomAccessStream ras1)
+                    {
+                        var sz = (int)ras1.Size;
+                        var buf = new byte[sz];
+                        using var dr = new Windows.Storage.Streams.DataReader(ras1);
+                        await dr.LoadAsync((uint)sz);
+                        dr.ReadBytes(buf);
+                        pngBytes = buf;
+                    }
+                    else if (obj is Windows.Storage.Streams.RandomAccessStreamReference ras2)
+                    {
+                        using var stream = await ras2.OpenReadAsync();
+                        var sz = (int)stream.Size;
+                        var buf = new byte[sz];
+                        using var dr = new Windows.Storage.Streams.DataReader(stream);
+                        await dr.LoadAsync((uint)sz);
+                        dr.ReadBytes(buf);
+                        pngBytes = buf;
+                    }
+                }
+                catch { /* fall through to Bitmap */ }
+            }
+
+            // Fallback: Bitmap format → decode and re-encode as PNG
+            if (pngBytes == null && content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Bitmap))
+            {
+                try
+                {
+                    var streamRef = await content.GetBitmapAsync();
+                    using var ras = await streamRef.OpenReadAsync();
+                    var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(ras);
+                    var softBitmap = await decoder.GetSoftwareBitmapAsync();
+                    using var pngStream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                    var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
+                        Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, pngStream);
+                    encoder.SetSoftwareBitmap(softBitmap);
+                    await encoder.FlushAsync();
+                    var sz = (int)pngStream.Size;
+                    var buf = new byte[sz];
+                    using var dr = new Windows.Storage.Streams.DataReader(pngStream.GetInputStreamAt(0));
+                    await dr.LoadAsync((uint)sz);
+                    dr.ReadBytes(buf);
+                    pngBytes = buf;
+                }
+                catch { /* no image on clipboard */ }
+            }
+
+            if (pngBytes == null) return null;
+
+            var attachmentsDir = Path.Combine(VaultPath, "attachments");
+            Directory.CreateDirectory(attachmentsDir);
+            int n = 1;
+            string filePath;
+            do { filePath = Path.Combine(attachmentsDir, $"{Note.Id}-{n}.png"); n++; }
+            while (File.Exists(filePath));
+            await File.WriteAllBytesAsync(filePath, pngBytes);
+            return $"attachments/{Path.GetFileName(filePath)}";
+        }
+        catch
+        {
+            return null;
+        }
+#else
+        return null;
+#endif
     }
 
     private static string RenderTitleLinks(string title) =>

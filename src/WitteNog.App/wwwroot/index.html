@@ -46,6 +46,27 @@
                 ref.invokeMethodAsync('HandleNoteAction', 'cancel', '');
             }
         }, true);
+
+        // Ctrl+V image paste — same capture pattern as Ctrl+S/Escape above
+        document.addEventListener('keydown', async e => {
+            if (!(e.ctrlKey && e.key === 'v')) return;
+            const ref = window.NoteBlockDelegate && window.NoteBlockDelegate._activeRef;
+            if (!ref) return;
+            const relativePath = await ref.invokeMethodAsync('SaveClipboardImageAsync');
+            if (!relativePath) return;
+            // Insert into TipTap editor if available, otherwise into fallback textarea
+            const editorEl = document.querySelector('.note-block.editing .tiptap-editor');
+            if (editorEl && window.TipTapBridge) {
+                window.TipTapBridge.insertMarkdown(editorEl.id, `![](${relativePath})`);
+            } else {
+                const ta = document.querySelector('.note-block.editing textarea');
+                if (ta) {
+                    const pos = ta.selectionStart ?? ta.value.length;
+                    ta.value = ta.value.slice(0, pos) + `![](${relativePath})` + ta.value.slice(pos);
+                    ta.dispatchEvent(new Event('input'));
+                }
+            }
+        }, true);
     </script>
     <script src="js/tiptap-bridge.js"></script>
     <script src="js/flow-canvas.js"></script>

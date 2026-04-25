@@ -150,6 +150,8 @@ window.NoteBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleNoteAction', 'edit', '');
             }
         });
+        // Store dotNetRef so TipTapBridge paste handler can retrieve it
+        element._noteBlockRef = dotNetRef;
     }
 };
 
@@ -255,6 +257,25 @@ window.WikiLinkDelegate = {
 
 window.TipTapBridge = {
     editors: {},
+    _pasteHandlerAttached: false,
+
+    _ensurePasteHandler() {
+        if (this._pasteHandlerAttached) return;
+        this._pasteHandlerAttached = true;
+        // Use keydown Ctrl+V — more reliable than paste event in MAUI WebView2
+        document.addEventListener('keydown', async (e) => {
+            if (!(e.ctrlKey && e.key === 'v')) return;
+            const editorEl = document.querySelector('.note-block.editing .tiptap-editor');
+            if (!editorEl) return;
+            const elementId = editorEl.id;
+            const container = editorEl.closest('.note-block');
+            const dotNetRef = container?._noteBlockRef;
+            if (!dotNetRef) return;
+            const relativePath = await dotNetRef.invokeMethodAsync('SaveClipboardImageAsync');
+            if (!relativePath) return;
+            window.TipTapBridge.insertMarkdown(elementId, `![](${relativePath})`);
+        });
+    },
 
     init(elementId, initialContent) {
         const el = document.getElementById(elementId);
@@ -278,7 +299,7 @@ window.TipTapBridge = {
             return;
         }
 
-        this.editors[elementId] = new window.tiptap.Editor({
+        const editor = new window.tiptap.Editor({
             element: el,
             extensions: [window.tiptapStarterKit.StarterKit],
             content: initialContent,
@@ -288,13 +309,106 @@ window.TipTapBridge = {
                 },
             },
         });
+        this.editors[elementId] = editor;
+        this._ensurePasteHandler();
+
+        // Attach keydown directly on the contenteditable — guaranteed to receive keyboard events
+        const bridge = this;
+        editor.view.dom.addEventListener('keydown', async (e) => {
+            if (!(e.ctrlKey && e.key === 'v')) return;
+            const container = el.closest('.note-block');
+            const dotNetRef = container?._noteBlockRef;
+            if (!dotNetRef) return;
+            const relativePath = await dotNetRef.invokeMethodAsync('SaveClipboardImageAsync');
+            if (!relativePath) return;
+            bridge.insertMarkdown(elementId, `![](${relativePath})`);
+        });
+    },
+
+    insertMarkdown(elementId, text) {
+        const editor = this.editors[elementId];
+        if (!editor) return;
+        if (editor.isFallback) {
+            // Fallback textarea: insert at cursor position
+            const ta = editor.el;
+            const pos = ta.selectionStart ?? ta.value.length;
+            ta.value = ta.value.slice(0, pos) + '\n' + text + '\n' + ta.value.slice(pos);
+            ta.selectionStart = ta.selectionEnd = pos + text.length + 2;
+            ta.dispatchEvent(new Event('input'));
+            return;
+        }
+        editor.chain().focus().insertContent({
+            type: 'paragraph',
+            content: [{ type: 'text', text }]
+        }).run();
     },
 
     getContent(elementId) {
         const editor = this.editors[elementId];
         if (!editor) return '';
         if (editor.isFallback) return editor.el.value;
-        return editor.getText ? editor.getText() : editor.getHTML();
+        return this._toMarkdown(editor.getJSON());
+    },
+
+    _inlineText(node) {
+        if (node.type === 'text') {
+            let t = node.text || '';
+            for (const m of (node.marks || [])) {
+                if (m.type === 'bold')   t = `**${t}**`;
+                if (m.type === 'italic') t = `*${t}*`;
+                if (m.type === 'code')   t = `\`${t}\``;
+            }
+            return t;
+        }
+        return (node.content || []).map(n => this._inlineText(n)).join('');
+    },
+
+    _toMarkdown(doc) {
+        const parts = [];
+        for (const node of (doc.content || [])) {
+            switch (node.type) {
+                case 'heading': {
+                    const hashes = '#'.repeat(node.attrs?.level || 1);
+                    const text = (node.content || []).map(n => this._inlineText(n)).join('');
+                    parts.push(`${hashes} ${text}`);
+                    break;
+                }
+                case 'paragraph': {
+                    const text = (node.content || []).map(n => this._inlineText(n)).join('');
+                    parts.push(text);
+                    break;
+                }
+                case 'bulletList': {
+                    for (const item of (node.content || [])) {
+                        const text = (item.content || []).flatMap(p => (p.content || []).map(n => this._inlineText(n))).join('');
+                        parts.push(`- ${text}`);
+                    }
+                    break;
+                }
+                case 'orderedList': {
+                    (node.content || []).forEach((item, i) => {
+                        const text = (item.content || []).flatMap(p => (p.content || []).map(n => this._inlineText(n))).join('');
+                        parts.push(`${i + 1}. ${text}`);
+                    });
+                    break;
+                }
+                case 'blockquote': {
+                    const text = (node.content || []).flatMap(p => (p.content || []).map(n => this._inlineText(n))).join('');
+                    parts.push(`> ${text}`);
+                    break;
+                }
+                case 'codeBlock': {
+                    const text = (node.content || []).map(n => n.text || '').join('');
+                    const lang = node.attrs?.language || '';
+                    parts.push(`\`\`\`${lang}\n${text}\n\`\`\``);
+                    break;
+                }
+                case 'horizontalRule':
+                    parts.push('---');
+                    break;
+            }
+        }
+        return parts.join('\n\n');
     },
 
     destroy(elementId) {

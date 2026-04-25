@@ -50,6 +50,50 @@ public class CreateNoteCommandTests
     }
 
     [Fact]
+    public async Task Handle_WithParentSlug_PrefixesSlugAndAddsWikiLink()
+    {
+        var repo = new FakeNoteRepository(Array.Empty<WitteNog.Core.Models.AtomicNote>());
+        var mediator = BuildMediator(repo);
+
+        var note = await mediator.Send(
+            new CreateNoteCommand("/vault", "Budget Planning", ParentSlug: "project-ideas"));
+
+        Assert.Equal("project-ideas-budget-planning", note.Id);
+        Assert.Equal("Budget Planning", note.Title);
+        Assert.StartsWith("# [[project-ideas]] Budget Planning", note.Content);
+        Assert.Contains("project-ideas", note.WikiLinks);
+    }
+
+    [Fact]
+    public async Task Handle_WithoutParentSlug_NoWikiLinkInHeading()
+    {
+        var repo = new FakeNoteRepository(Array.Empty<WitteNog.Core.Models.AtomicNote>());
+        var mediator = BuildMediator(repo);
+
+        var note = await mediator.Send(
+            new CreateNoteCommand("/vault", "Standalone Note"));
+
+        Assert.Equal("standalone-note", note.Id);
+        Assert.StartsWith("# Standalone Note", note.Content);
+        Assert.DoesNotContain("[[", note.Content);
+    }
+
+    [Fact]
+    public async Task Handle_WithHeadingParentSlug_KeepsSlugButAddsWikiLinkInHeading()
+    {
+        var repo = new FakeNoteRepository(Array.Empty<WitteNog.Core.Models.AtomicNote>());
+        var mediator = BuildMediator(repo);
+
+        var note = await mediator.Send(
+            new CreateNoteCommand("/vault", "frontend", HeadingParentSlug: "frontend"));
+
+        Assert.Equal("frontend", note.Id);
+        Assert.StartsWith("# [[frontend]]", note.Content);
+        Assert.DoesNotContain("frontend]]", note.Content.Substring(note.Content.IndexOf('\n')));
+        Assert.Contains("frontend", note.WikiLinks);
+    }
+
+    [Fact]
     public async Task Handle_PersistsNoteToRepository()
     {
         var repo = new FakeNoteRepository(Array.Empty<WitteNog.Core.Models.AtomicNote>());

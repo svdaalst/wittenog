@@ -38,19 +38,17 @@ public class UpdateNoteCommandHandler : IRequestHandler<UpdateNoteCommand, Atomi
         var firstSlug = Path.GetFileNameWithoutExtension(request.FilePath);
         var vaultDir = Path.GetDirectoryName(request.FilePath)!;
 
+        var parentSlug = !string.IsNullOrEmpty(request.TabQuery) ? request.TabQuery : firstSlug;
+
         foreach (var (sectionTitle, sectionContent) in sections.Skip(1))
         {
-            var newSlug = !string.IsNullOrEmpty(request.TabQuery)
-                ? $"{request.TabQuery}-{_parser.GenerateSlug(sectionTitle)}"
-                : _parser.GenerateSlug(sectionTitle);
+            var newSlug = $"{parentSlug}-{_parser.GenerateSlug(sectionTitle)}";
             var newPath = Path.Combine(vaultDir, $"{newSlug}.md");
 
             if (await _storage.ExistsAsync(newPath, ct))
                 continue;
 
-            var newContent = !string.IsNullOrEmpty(request.TabQuery)
-                ? ReplaceFirstHeading(sectionContent, request.TabQuery, sectionTitle)
-                : sectionContent;
+            var newContent = ReplaceFirstHeading(sectionContent, parentSlug, sectionTitle);
             var newLinks = _linkParser.ExtractLinks(newContent);
             var newTitle = _parser.ExtractTitle(newContent);
             var newNote = new AtomicNote(newSlug, newPath, newTitle, newContent, newLinks, DateTimeOffset.UtcNow);
@@ -65,10 +63,10 @@ public class UpdateNoteCommandHandler : IRequestHandler<UpdateNoteCommand, Atomi
         return firstNote;
     }
 
-    private static string ReplaceFirstHeading(string content, string tabQuery, string sectionSlug)
+    private static string ReplaceFirstHeading(string content, string parentSlug, string sectionTitle)
     {
         var newline = content.IndexOf('\n');
-        var newHeading = $"# [[{tabQuery}]]-{sectionSlug}";
+        var newHeading = $"# [[{parentSlug}]] {sectionTitle}";
         return newline >= 0
             ? $"{newHeading}{content[newline..]}"
             : newHeading;

@@ -14,8 +14,12 @@
                 <h3>Nieuwe notitie</h3>
                 <input @bind="_title" @bind:event="oninput" placeholder="Titel..." />
                 <div class="modal-actions">
-                    <button data-action="create">Aanmaken</button>
-                    <button data-action="cancel">Annuleren</button>
+                    @if (ShowCreateDefNote)
+                    {
+                        <button class="modal-btn-secondary" data-action="create-def-note">Projectpagina aanmaken</button>
+                    }
+                    <button class="modal-btn-primary" data-action="create">Aanmaken</button>
+                    <button class="modal-btn-secondary" data-action="cancel">Annuleren</button>
                 </div>
             </div>
         </div>
@@ -25,7 +29,9 @@
 @code {
     [Parameter] public string VaultPath { get; set; } = string.Empty;
     [Parameter] public string PageLink { get; set; } = string.Empty;
+    [Parameter] public bool ShowCreateDefNote { get; set; }
     [Parameter] public EventCallback OnNoteCreated { get; set; }
+    [Parameter] public EventCallback OnDefNoteCreated { get; set; }
 
     private bool _showModal;
     private string _title = string.Empty;
@@ -53,6 +59,10 @@
         {
             await CreateAsync();
         }
+        else if (action == "create-def-note")
+        {
+            await CreateDefNoteAsync();
+        }
         else if (action == "cancel")
         {
             _showModal = false;
@@ -63,12 +73,19 @@
     private async Task CreateAsync()
     {
         if (string.IsNullOrWhiteSpace(_title)) return;
-        var initialContent = string.IsNullOrWhiteSpace(PageLink) ? "" : $"[[{PageLink}]]";
-        await Mediator.Send(new CreateNoteCommand(VaultPath, _title, initialContent));
+        await Mediator.Send(new CreateNoteCommand(VaultPath, _title, ParentSlug: PageLink));
         _title = string.Empty;
         _showModal = false;
         await InvokeAsync(StateHasChanged);
         await OnNoteCreated.InvokeAsync();
+    }
+
+    private async Task CreateDefNoteAsync()
+    {
+        await Mediator.Send(new CreateNoteCommand(VaultPath, PageLink, HeadingParentSlug: PageLink));
+        _showModal = false;
+        await InvokeAsync(StateHasChanged);
+        await OnDefNoteCreated.InvokeAsync();
     }
 
     public void Dispose() => _dotNetRef?.Dispose();

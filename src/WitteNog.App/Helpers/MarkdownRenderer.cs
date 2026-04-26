@@ -6,13 +6,14 @@ using Markdig;
 
 public static class MarkdownRenderer
 {
-    // DisableHtml() strips raw HTML from markdown — closes the XSS hole that would otherwise
-    // let a hostile .md file (synced, imported, transcribed) inject <script> into the WebView,
-    // where it shares the JS context with NoteBlockDelegate / TipTapBridge and the [JSInvokable]
-    // C# methods exposed via DotNetObjectReference.
+    // We intentionally do NOT call .DisableHtml() here. We pre-inject our own HTML
+    // (wiki-link spans and inline-task buttons) before Markdig runs, and DisableHtml
+    // would escape that HTML — the user would see literal <button>...</button> text in
+    // their notes instead of a clickable checkbox. XSS from a hostile note's <script>
+    // is now blocked at execution time by the CSP in index.html (script-src 'self',
+    // no 'unsafe-inline').
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
-        .DisableHtml()
         .Build();
 
     private static readonly Regex WikiLinkRegex =

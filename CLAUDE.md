@@ -64,7 +64,7 @@ using IoFileSystem = System.IO.Abstractions.FileSystem;
 using IIoFileSystem = System.IO.Abstractions.IFileSystem;
 ```
 
-**DOM event delegation in Blazor**: `@onclick` and `@onchange` do NOT work in this MAUI BlazorWebView — events are silently swallowed. All interactive elements (wiki links, note actions, tab clicks, task completion) must use native DOM delegation attached via `ElementReference`. Never use `@onclick` or `@onchange` on buttons, checkboxes, or any other element; always use `data-action` + a JS delegate instead. Every delegate follows this pattern:
+**DOM event delegation vs. Blazor handlers**: Both `@onclick`/`@onchange` and native DOM delegation work in this MAUI BlazorWebView — pick whichever fits the call site. Use plain `@onclick` for ordinary buttons (sidebar hamburger, FAB, modal buttons, etc.). Use the `data-action` + JS-delegate pattern when you need something the C# event args don't give you cleanly: shift-key state on a WikiLink click, dynamic content rendered through `MarkupString` (where Blazor doesn't wire handlers), clipboard reads, or single-listener routing across many buttons inside dynamically rendered HTML. Both patterns coexist in the codebase. The delegation pattern looks like this:
 ```csharp
 // C# — attach on first render
 await JS.InvokeVoidAsync("NoteBlockDelegate.attach", _container, _dotNetRef);
@@ -93,9 +93,13 @@ private void OnExternalChange(NoteChangedEvent _) => InvokeAsync(RefreshAsync);
 private async void OnExternalChange(NoteChangedEvent _) => await RefreshAsync();
 ```
 
-**Markdown rendering**: `MarkdownRenderer.Render()` pre-processes `[[link]]` → `<span class="wiki-link" data-wikilink="...">` (HTML-encoded) before passing to Markdig. Audio file links produced by Markdig (`<a href="...wav">`) are then post-processed into `<span data-audiolink="...">` so WebView2 never navigates to them.
+**Markdown rendering**: `MarkdownRenderer.Render(markdown, filePath, lineOffset, vaultRoot)` pre-processes `[[link]]` → `<span class="wiki-link" data-wikilink="...">` and `- [ ]` → `<button class="inline-task-btn" data-action="complete-inline" data-taskid="...">` before passing to Markdig. Audio file links produced by Markdig (`<a href="...wav">`) and relative `<img>` tags are post-processed: audio → `<span data-audiolink="...">` so WebView2 never navigates, images → base64 data URIs cached by absolute path + mtime. The image rewrite enforces two security checks: the resolved absolute path must live inside `vaultRoot` (passed by `NoteBlock`), and the extension must be in the whitelist `png/jpg/jpeg/gif/webp` — anything else is left as-is. **Markdig is configured WITHOUT `.DisableHtml()`** because that would also escape our pre-injected button/span HTML; XSS protection from a hostile note's `<script>` is provided by the CSP in `index.html` (`script-src 'self'`, no `'unsafe-inline'`) instead.
 
-**Section splitting**: `NoteParser.SplitIntoSections()` splits only on `# H1` headings (not H2+). `UpdateNoteCommand` creates a new child `.md` file for each H1 section beyond the first, but only if the target slug does not already exist.
+**Section splitting**: `NoteParser.SplitIntoSections()` splits only on `# H1` headings (not H2+). `UpdateNoteCommand` plans all child writes up front, then writes the parent file FIRST (so a mid-loop crash leaves a coherent state), then the children. Slug collisions get a `-2`, `-3`... suffix instead of silently dropping content. Headings whose slug would be empty (e.g. `# !!!`) fold their section back into the parent rather than being lost.
+
+**Slug validation**: `RenameNoteCommandHandler.ValidateSlug` is the single source of truth for what's a legal note name. Regex `^[a-z0-9][a-z0-9\-_]{0,99}$` plus rejection of Windows reserved names (`CON`, `PRN`, ...) plus a vault-root containment check. Public so the UI can pre-validate before sending the command — `NoteBlock.RenameAsync` calls it and shows a Dutch alert on failure. Renaming also rewrites the leading `# old-title` line in the file content (preserving any `[[parent]] ` prefix from split notes) so the displayed title follows the new filename.
+
+**Atomic markdown writes**: `MarkdownStorageService.WriteAsync` writes to a `.tmp` sidecar and then `File.Move(overwrite: true)`. A crash mid-write leaves the original `.md` intact rather than truncated. Pair this with `WriteAllTextAsync` (real async) instead of the previous `Task.Run(WriteAllText)`.
 
 **Tab navigation**: `NavigationService` is a singleton managing a `List<TabViewModel>`. `OpenTab()` reuses an existing tab if one already has the same `Type+Query`; `OpenNewTab()` always creates a new one. Shift+click on a WikiLink calls `OpenNewTab`. `ActiveTab` returns `null` when the tab list is empty.
 
@@ -113,8 +117,10 @@ Classes that cannot be unit tested (require hardware or OS events): `AudioRecord
 
 ## JavaScript / CSS
 
-- `wwwroot/js/tiptap-bridge.js`: All JS delegates live here. TipTap editor lifecycle (`init`, `getContent`, `destroy`) keyed by a per-instance `id` attribute. `getContent` returns `editor.getText()` — raw text including markdown characters, not HTML. Falls back to a `<textarea>` if TipTap CDN is unavailable (both paths return raw markdown).
-- `wwwroot/index.html`: Loads TipTap via CDN (`@tiptap/core` + `@tiptap/starter-kit` v2). Tracks `window._shiftPressed` via `keydown`/`keyup` for shift+click detection.
+- `wwwroot/js/tiptap-bridge.js`: All Blazor-callable JS delegates (`NoteBlockDelegate`, `TabDelegate`, `TaskTableDelegate`, `OnboardingDelegate`, `HeadingCollapse`, etc.) plus the TipTap editor lifecycle (`init`, `getContent`, `destroy`) keyed by a per-instance `id` attribute. `getContent` returns `editor.getText()` — raw text including markdown characters, not HTML. Falls back to a `<textarea>` when TipTap globals are absent (both paths return raw markdown).
+- `wwwroot/js/global-keybindings.js`: Document-level keybindings — Shift-tracker for WikiLink shift-click, Ctrl+S/Ctrl+Enter (save), Esc (cancel), Ctrl+W (close tab), Ctrl+V (paste image). Lives in its own file so the CSP can drop `'unsafe-inline'` for `script-src` — adding new keybindings here keeps the strict CSP intact.
+- `wwwroot/js/tiptap-core.min.js` + `tiptap-starter-kit.min.js`: Bundled TipTap libs (NOT loaded from CDN). The `<script src=...>` tag for these is added in `index.html` if/when needed; today the editor relies on `tiptap-bridge.js`'s `init` to detect them via `window.tiptap` / `window.tiptapStarterKit`.
+- `wwwroot/index.html`: Includes the CSP `<meta>` that drives the security model — `script-src 'self'` (no inline), `img-src 'self' data: blob:` (for base64-inlined attachments and TipTap drag previews), `style-src 'self' 'unsafe-inline'` (Blazor component-style isolation needs inline). Adding any inline `<script>` here will be silently blocked — keep code in external `.js` files under `wwwroot/js/`.
 - `wwwroot/css/app.css`: Dark theme. Key variables: `--bg: #1a1a2e`, `--surface: #16213e`, `--accent: #e94560`. Notes render as a seamless document (no card borders) with `border-bottom` dividers between blocks.
 
 ## Vault Location

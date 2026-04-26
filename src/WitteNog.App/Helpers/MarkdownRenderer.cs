@@ -1,5 +1,6 @@
 namespace WitteNog.App.Helpers;
 
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Markdig;
 
@@ -27,6 +28,13 @@ public static class MarkdownRenderer
     private static readonly Regex RelativeImgRegex =
         new(@"<img([^>]*) src=""(?!https?://|file://|data:)([^""]+)""",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // H4: caches the (path → base64 data URI) result so we don't re-read + re-encode the
+    // same image on every render. Key is the absolute path; value carries the file's
+    // mtime so an external change (re-paste, edit, delete + recreate) invalidates the
+    // entry on next access. Concurrent because Render() can be called from any thread.
+    private static readonly ConcurrentDictionary<string, (DateTime Mtime, string DataUri)>
+        _dataUriCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Renders markdown to HTML. WikiLinks become clickable spans with data-wikilink attributes.
@@ -120,11 +128,25 @@ public static class MarkdownRenderer
 
             try
             {
-                var bytes = File.ReadAllBytes(abs);
-                var b64 = Convert.ToBase64String(bytes);
-                return $"<img{attrs} src=\"data:{mime};base64,{b64}\"";
+                // H4: re-render is hot — Blazor re-runs Render() on every state change in
+                // this component or any sibling, and a 10-image note used to re-read +
+                // re-encode every byte every time. Cache by absolute path with the file's
+                // mtime as the freshness key so an external edit / re-paste invalidates.
+                var mtime = File.GetLastWriteTimeUtc(abs);
+                var dataUri = _dataUriCache.AddOrUpdate(
+                    abs,
+                    addValueFactory: _ => (mtime, BuildDataUri(abs, mime)),
+                    updateValueFactory: (_, cached) =>
+                        cached.Mtime == mtime ? cached : (mtime, BuildDataUri(abs, mime)));
+                return $"<img{attrs} src=\"{dataUri.DataUri}\"";
             }
             catch { return m.Value; }
         });
+    }
+
+    private static string BuildDataUri(string absPath, string mime)
+    {
+        var bytes = File.ReadAllBytes(absPath);
+        return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
     }
 }

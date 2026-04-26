@@ -345,13 +345,25 @@
 
             if (pngBytes == null) return null;
 
+            // Defense-in-depth: Note.Id is the file slug. RenameNoteCommand.ValidateSlug
+            // already blocks path separators on the rename path, but a slug that arrived
+            // via a hand-edited filesystem entry shouldn't be allowed to escape the
+            // attachments dir via Path.Combine.
+            if (Note.Id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                return null;
+
             var attachmentsDir = Path.Combine(VaultPath, "attachments");
             Directory.CreateDirectory(attachmentsDir);
-            int n = 1;
-            string filePath;
-            do { filePath = Path.Combine(attachmentsDir, $"{Note.Id}-{n}.png"); n++; }
-            while (File.Exists(filePath));
-            await File.WriteAllBytesAsync(filePath, pngBytes);
+
+            // H3: a unique millisecond-precision suffix removes the TOCTOU race in the
+            // previous do/while-File.Exists loop and turns the O(n²) "paste many images"
+            // case into O(n). Two pastes within the same millisecond are vanishingly
+            // rare, but FileMode.CreateNew below makes us crash-loud rather than
+            // overwrite if it ever happens.
+            var ticks = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var filePath = Path.Combine(attachmentsDir, $"{Note.Id}-{ticks}.png");
+            await using (var fs = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write))
+                await fs.WriteAsync(pngBytes);
             return $"attachments/{Path.GetFileName(filePath)}";
         }
         catch

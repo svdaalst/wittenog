@@ -23,7 +23,9 @@ public class MarkdownStorageService : IMarkdownStorage
     public async Task<AtomicNote?> ReadAsync(string filePath, CancellationToken ct = default)
     {
         if (!_fs.File.Exists(filePath)) return null;
-        var content = await Task.Run(() => _fs.File.ReadAllText(filePath), ct);
+        // Use the genuine async API instead of Task.Run-over-sync: avoids burning a
+        // thread-pool thread on blocking IO and properly honours the cancellation token.
+        var content = await _fs.File.ReadAllTextAsync(filePath, ct);
         var lastWrite = _fs.FileInfo.New(filePath).LastWriteTimeUtc;
         return Parse(filePath, content, lastWrite);
     }
@@ -33,7 +35,16 @@ public class MarkdownStorageService : IMarkdownStorage
         var dir = _fs.Path.GetDirectoryName(note.FilePath)!;
         if (!_fs.Directory.Exists(dir))
             _fs.Directory.CreateDirectory(dir);
-        await Task.Run(() => _fs.File.WriteAllText(note.FilePath, note.Content), ct);
+
+        // H5: atomic write. Without a tmp+move, a crash mid-WriteAllText leaves the
+        // user with a truncated or empty .md and the rest of their note gone forever.
+        // Writing to a sidecar and then File.Move(overwrite:true) keeps the original
+        // file fully readable until the new content is fully on disk. On NTFS Move
+        // with overwrite is implemented as ReplaceFile, which is atomic on the same
+        // volume.
+        var tmpPath = note.FilePath + ".tmp";
+        await _fs.File.WriteAllTextAsync(tmpPath, note.Content, ct);
+        _fs.File.Move(tmpPath, note.FilePath, overwrite: true);
     }
 
     public Task<bool> ExistsAsync(string filePath, CancellationToken ct = default)

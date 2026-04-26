@@ -148,8 +148,10 @@ public class UpdateNoteCommandTests
     }
 
     [Fact]
-    public async Task Handle_MultipleHeadings_SkipsExistingFile()
+    public async Task Handle_MultipleHeadings_SuffixesOnExistingFileCollision()
     {
+        // H1 fix: a colliding child slug used to silently drop the new section's
+        // content. Now it suffixes "-2" so nothing is lost.
         var existing = new AtomicNote(
             "combined-sectie-twee", NoteFile("combined-sectie-twee.md"), "Sectie Twee",
             "# Sectie Twee\n\nOriginele inhoud.",
@@ -161,8 +163,120 @@ public class UpdateNoteCommandTests
             NoteFile("combined.md"),
             "# Sectie Een\n\nA.\n\n# Sectie Twee\n\nB."));
 
-        var sectionTwo = repo.All.First(n => n.Id == "combined-sectie-twee");
-        Assert.Contains("Originele inhoud", sectionTwo.Content);
+        // The pre-existing file is preserved untouched.
+        var original = repo.All.First(n => n.Id == "combined-sectie-twee");
+        Assert.Contains("Originele inhoud", original.Content);
+
+        // The new section's content lands at a -2 suffix, not silently lost.
+        var deduped = repo.All.First(n => n.Id == "combined-sectie-twee-2");
+        Assert.Contains("B.", deduped.Content);
+    }
+
+    [Fact]
+    public async Task Handle_TwoHeadingsWithSameSlug_BothPersist()
+    {
+        // Different casing / punctuation can produce the same slug. Previously the
+        // second one was silently dropped (sections.Skip(1).ExistsAsync skipped, and
+        // the parent file got only sections[0]). Now both get distinct files.
+        var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
+        var mediator = BuildMediator(repo);
+
+        await mediator.Send(new UpdateNoteCommand(
+            NoteFile("parent.md"),
+            "# Hoofd\n\nA.\n\n# Notes\n\nfirst.\n\n# notes\n\nsecond."));
+
+        Assert.Contains(repo.All, n => n.Id == "parent-notes");
+        Assert.Contains(repo.All, n => n.Id == "parent-notes-2");
+        var first = repo.All.First(n => n.Id == "parent-notes");
+        var second = repo.All.First(n => n.Id == "parent-notes-2");
+        Assert.Contains("first.", first.Content);
+        Assert.Contains("second.", second.Content);
+    }
+
+    [Fact]
+    public async Task Handle_HeadingWithUnslugifiableTitle_FoldsBackIntoParent()
+    {
+        // A heading like "# !!!" produces an empty slug. We can't make a file from it,
+        // but we mustn't drop the user's content either — so the section folds back
+        // into the parent file as part of sections[0].
+        var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
+        var mediator = BuildMediator(repo);
+
+        await mediator.Send(new UpdateNoteCommand(
+            NoteFile("parent.md"),
+            "# Hoofd\n\nA.\n\n# !!!\n\nimportant body."));
+
+        Assert.Single(repo.All);
+        var parent = repo.All.Single();
+        Assert.Equal("parent", parent.Id);
+        Assert.Contains("A.", parent.Content);
+        Assert.Contains("important body.", parent.Content);
+        Assert.Contains("# !!!", parent.Content);
+    }
+
+    [Fact]
+    public async Task Handle_WriteOrdering_ParentWrittenBeforeChildren()
+    {
+        // H2: a crash between the parent shrink and the child writes must not leave
+        // the user with duplicate content. We assert this by injecting a wrapper that
+        // throws on the SECOND write. With the parent-first ordering, the parent file
+        // gets shrunk to sections[0] and no child file lands. Before H2, the child
+        // would land first and the parent would still hold all sections — duplication.
+        var repo = new FakeNoteRepository(Array.Empty<AtomicNote>());
+        // Pre-seed the original file so we can observe its post-crash state.
+        await repo.WriteAsync(new AtomicNote(
+            "combined", NoteFile("combined.md"), "Old",
+            "# Sectie Een\n\nA.\n\n# Sectie Twee\n\nB.",
+            Array.Empty<string>(), DateTimeOffset.UtcNow));
+
+        var crashing = new ThrowOnSecondWriteRepo(repo);
+        var mediator = BuildMediatorWithRepo(crashing, repo);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => mediator.Send(
+            new UpdateNoteCommand(
+                NoteFile("combined.md"),
+                "# Sectie Een\n\nA.\n\n# Sectie Twee\n\nB.")));
+
+        // After the crash: the parent has been shrunk to sections[0]. There is no
+        // child file with the duplicated content of sections[1].
+        var parent = repo.All.Single(n => n.Id == "combined");
+        Assert.Contains("A.", parent.Content);
+        Assert.DoesNotContain("Sectie Twee", parent.Content);
+        Assert.DoesNotContain(repo.All, n => n.Id == "combined-sectie-twee");
+    }
+
+    // Wraps the fake repo and throws on the Nth WriteAsync call. Lets a test simulate
+    // a crash partway through the split sequence and observe the resulting state.
+    private sealed class ThrowOnSecondWriteRepo : IMarkdownStorage
+    {
+        private readonly IMarkdownStorage _inner;
+        private int _writes;
+        public ThrowOnSecondWriteRepo(IMarkdownStorage inner) => _inner = inner;
+        public Task<AtomicNote?> ReadAsync(string filePath, CancellationToken ct = default) => _inner.ReadAsync(filePath, ct);
+        public Task<bool> ExistsAsync(string filePath, CancellationToken ct = default) => _inner.ExistsAsync(filePath, ct);
+        public Task DeleteAsync(string filePath, CancellationToken ct = default) => _inner.DeleteAsync(filePath, ct);
+        public IAsyncEnumerable<AtomicNote> ReadAllAsync(string vaultPath, CancellationToken ct = default) => _inner.ReadAllAsync(vaultPath, ct);
+        public Task WriteAsync(AtomicNote note, CancellationToken ct = default)
+        {
+            _writes++;
+            if (_writes == 2) throw new InvalidOperationException("simulated crash");
+            return _inner.WriteAsync(note, ct);
+        }
+    }
+
+    // Builds a mediator where IMarkdownStorage is the crashing wrapper but
+    // INoteRepository is still the underlying fake (for the rare command that needs both).
+    private static IMediator BuildMediatorWithRepo(IMarkdownStorage storage, FakeNoteRepository fake)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMediatR(cfg =>
+            cfg.RegisterServicesFromAssemblyContaining<UpdateNoteCommandHandler>());
+        services.AddSingleton<IMarkdownStorage>(storage);
+        services.AddSingleton<INoteRepository>(fake);
+        services.AddSingleton<NoteParser>();
+        services.AddSingleton<IWikiLinkParser, WikiLinkParser>();
+        return services.BuildServiceProvider().GetRequiredService<IMediator>();
     }
 
     [Fact]

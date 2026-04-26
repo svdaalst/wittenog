@@ -5,8 +5,13 @@ using Markdig;
 
 public static class MarkdownRenderer
 {
+    // DisableHtml() strips raw HTML from markdown — closes the XSS hole that would otherwise
+    // let a hostile .md file (synced, imported, transcribed) inject <script> into the WebView,
+    // where it shares the JS context with NoteBlockDelegate / TipTapBridge and the [JSInvokable]
+    // C# methods exposed via DotNetObjectReference.
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
+        .DisableHtml()
         .Build();
 
     private static readonly Regex WikiLinkRegex =
@@ -29,8 +34,12 @@ public static class MarkdownRenderer
     /// When filePath is provided, unchecked task checkboxes become clickable buttons.
     /// lineOffset must equal the number of lines stripped from the top of the original file
     /// (e.g. the H1 + trailing blank lines) so that task IDs reference the correct file line.
+    /// When vaultRoot is provided, relative &lt;img&gt; sources are inlined as base64 data URIs
+    /// only if the resolved absolute path is inside vaultRoot AND the extension is in the
+    /// allowed image whitelist. This prevents a hostile .md from inlining arbitrary local
+    /// files (e.g. ![](../../../Windows/win.ini)) into the DOM.
     /// </summary>
-    public static string Render(string markdown, string? filePath = null, int lineOffset = 0)
+    public static string Render(string markdown, string? filePath = null, int lineOffset = 0, string? vaultRoot = null)
     {
         // Replace unchecked task checkboxes with clickable buttons BEFORE Markdig processes the text.
         // Line indices must match those used by TaskParser (which calls File.ReadAllLines).
@@ -68,17 +77,50 @@ public static class MarkdownRenderer
         // (file:/// URIs are blocked by WebView2's virtual host cross-origin policy)
         if (filePath == null) return afterAudio;
         var noteDir = Path.GetDirectoryName(filePath) ?? string.Empty;
+
+        // Pre-compute the vault root with a trailing separator so StartsWith does a clean
+        // directory-prefix check (avoids "/vaultA" matching "/vault" by accident).
+        string? vaultRootNormalized = null;
+        if (!string.IsNullOrEmpty(vaultRoot))
+        {
+            vaultRootNormalized = Path.GetFullPath(
+                vaultRoot!.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar);
+        }
+
         return RelativeImgRegex.Replace(afterAudio, m =>
         {
             var attrs = m.Groups[1].Value;
             var src = m.Groups[2].Value;
-            var abs = Path.GetFullPath(Path.Combine(noteDir, src));
+
+            string abs;
+            try { abs = Path.GetFullPath(Path.Combine(noteDir, src)); }
+            catch { return m.Value; } // malformed path — leave the original tag
+
+            // Defense-in-depth: when a vault root is known, the resolved file MUST live
+            // inside it. This blocks ![](../../../Windows/win.ini) and similar.
+            if (vaultRootNormalized is not null
+                && !abs.StartsWith(vaultRootNormalized, StringComparison.OrdinalIgnoreCase))
+                return m.Value;
+
             if (!File.Exists(abs)) return m.Value; // leave as-is if file missing
+
+            // Whitelist allowed image extensions. Unknown extensions used to fall through to
+            // image/png, which would happily base64-encode arbitrary binaries (e.g. .exe).
+            var ext = Path.GetExtension(abs).TrimStart('.').ToLowerInvariant();
+            string? mime = ext switch
+            {
+                "png" => "image/png",
+                "jpg" or "jpeg" => "image/jpeg",
+                "gif" => "image/gif",
+                "webp" => "image/webp",
+                _ => null
+            };
+            if (mime is null) return m.Value;
+
             try
             {
                 var bytes = File.ReadAllBytes(abs);
-                var ext = Path.GetExtension(abs).TrimStart('.').ToLowerInvariant();
-                var mime = ext switch { "jpg" or "jpeg" => "image/jpeg", "gif" => "image/gif", "webp" => "image/webp", _ => "image/png" };
                 var b64 = Convert.ToBase64String(bytes);
                 return $"<img{attrs} src=\"data:{mime};base64,{b64}\"";
             }

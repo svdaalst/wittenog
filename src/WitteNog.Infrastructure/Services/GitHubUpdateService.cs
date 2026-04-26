@@ -74,8 +74,9 @@ public class GitHubUpdateService : IUpdateService
 
         progress.Report(90);
 
-        // Extract ZIP
-        ZipFile.ExtractToDirectory(zipPath, newDir);
+        // Extract ZIP — validate every entry against the destination root before extracting
+        // so a malicious archive cannot zip-slip files into ..\..\Windows\System32 etc.
+        ExtractZipSafely(zipPath, newDir);
 
         progress.Report(95);
 
@@ -117,5 +118,40 @@ public class GitHubUpdateService : IUpdateService
         if (!Version.TryParse(Trim3(latest), out var l) || !Version.TryParse(Trim3(current), out var c))
             return false;
         return l > c;
+    }
+
+    /// <summary>
+    /// Extracts <paramref name="zipPath"/> to <paramref name="destination"/>, refusing any
+    /// entry whose resolved path falls outside the destination directory (zip-slip).
+    /// </summary>
+    internal static void ExtractZipSafely(string zipPath, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        var rootFull = Path.GetFullPath(
+            destination.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar);
+
+        using var archive = ZipFile.OpenRead(zipPath);
+        foreach (var entry in archive.Entries)
+        {
+            // Skip pure directory entries (FullName ends with '/')
+            if (string.IsNullOrEmpty(entry.Name) && entry.FullName.EndsWith('/'))
+            {
+                var dirFull = Path.GetFullPath(Path.Combine(destination, entry.FullName));
+                if (!dirFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException($"Zip-slip detected: {entry.FullName}");
+                Directory.CreateDirectory(dirFull);
+                continue;
+            }
+
+            var destFull = Path.GetFullPath(Path.Combine(destination, entry.FullName));
+            if (!destFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"Zip-slip detected: {entry.FullName}");
+
+            var parent = Path.GetDirectoryName(destFull);
+            if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+
+            entry.ExtractToFile(destFull, overwrite: true);
+        }
     }
 }

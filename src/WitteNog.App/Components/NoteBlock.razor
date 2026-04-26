@@ -48,7 +48,7 @@
         else
         {
             <div class="note-content" data-action="edit">
-                @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content)))
+                @((MarkupString)MarkdownRenderer.Render(StripLeadingH1(Note.Content), Note.FilePath, GetH1LineOffset(Note.Content), VaultPath))
             </div>
         }
         @if (!_renaming)
@@ -249,6 +249,20 @@
             await InvokeAsync(StateHasChanged);
             return;
         }
+
+        // Pre-validate so the user sees feedback for `..`, `con`, slashes, etc. instead of
+        // a silent UI bounce. RenameNoteCommandHandler.ValidateSlug runs the same check
+        // server-side as the authoritative defense.
+        try
+        {
+            RenameNoteCommandHandler.ValidateSlug(newSlug, VaultPath);
+        }
+        catch (ArgumentException ex)
+        {
+            await JS.InvokeVoidAsync("alert", ex.Message);
+            return; // keep the rename UI open so the user can correct the input
+        }
+
         _renaming = false;
         await Mediator.Send(new RenameNoteCommand(Note.FilePath, newSlug, VaultPath));
         await OnSaved.InvokeAsync();

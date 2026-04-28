@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="MediatR" Version="14.1.0" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.1.0" />
   </ItemGroup>
 
   <PropertyGroup>

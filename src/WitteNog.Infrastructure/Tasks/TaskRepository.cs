@@ -36,40 +36,67 @@ public class TaskRepository : ITaskRepository
         if (!_fs.File.Exists(filePath))
             throw new InvalidOperationException($"Taakbestand niet gevonden: {filePath}");
 
-        var lines = await Task.Run(() => _fs.File.ReadAllLines(filePath), ct);
-
-        int targetLine = -1;
-
-        // Snelpad: regelnummer uit taak-ID klopt nog
-        if (lineNumber < lines.Length && lines[lineNumber].Contains("- [ ]"))
+        // M7: hold the file open with FileShare.None across the entire read-modify-write
+        // so a concurrent UpdateNoteCommand or an external editor cannot slip a write
+        // in between our read and our write — that race used to silently lose the
+        // user's edits, with TaskRepository overwriting the file using stale content.
+        // If the file is genuinely held by another process we now throw IOException
+        // (loud failure) rather than silently corrupt.
+        int targetLine;
+        var lines = new List<string>();
+        await using (var fs = _fs.FileStream.New(
+                         filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
-            targetLine = lineNumber;
-        }
-        else
-        {
-            // Fallback: zoek via de gecachte ruwe tekstregel
-            var cachedTask = _cache.GetTasks(vaultPath).FirstOrDefault(t => t.Id == taskId);
-            if (cachedTask != null)
+            // Read line-by-line — matches ReadAllLines semantics (handles \n and \r\n,
+            // strips trailing line break, drops the empty element after a final newline).
+            using (var reader = new StreamReader(fs, leaveOpen: true))
             {
-                for (int i = 0; i < lines.Length; i++)
+                string? line;
+                while ((line = await reader.ReadLineAsync(ct)) is not null)
+                    lines.Add(line);
+            }
+
+            targetLine = -1;
+            // Snelpad: regelnummer uit taak-ID klopt nog
+            if (lineNumber < lines.Count && lines[lineNumber].Contains("- [ ]"))
+            {
+                targetLine = lineNumber;
+            }
+            else
+            {
+                // Fallback: zoek via de gecachte ruwe tekstregel
+                var cachedTask = _cache.GetTasks(vaultPath).FirstOrDefault(t => t.Id == taskId);
+                if (cachedTask != null)
                 {
-                    if (string.Equals(lines[i], cachedTask.RawLine, StringComparison.Ordinal)
-                        && lines[i].Contains("- [ ]"))
+                    for (int i = 0; i < lines.Count; i++)
                     {
-                        targetLine = i;
-                        break;
+                        if (string.Equals(lines[i], cachedTask.RawLine, StringComparison.Ordinal)
+                            && lines[i].Contains("- [ ]"))
+                        {
+                            targetLine = i;
+                            break;
+                        }
                     }
                 }
             }
+
+            if (targetLine == -1)
+                throw new InvalidOperationException(
+                    $"Taak niet gevonden als open taak in {filePath}. " +
+                    "Het bestand is mogelijk gewijzigd sinds de laatste scan.");
+
+            lines[targetLine] = lines[targetLine].Replace("- [ ]", "- [x]");
+
+            // Truncate and rewrite under the same lock. WriteLineAsync per line matches
+            // WriteAllLines (which also writes Environment.NewLine after every line,
+            // including the last → file ends with a trailing newline).
+            fs.Position = 0;
+            fs.SetLength(0);
+            await using var writer = new StreamWriter(fs, leaveOpen: true) { NewLine = Environment.NewLine };
+            foreach (var l in lines)
+                await writer.WriteLineAsync(l.AsMemory(), ct);
+            await writer.FlushAsync(ct);
         }
-
-        if (targetLine == -1)
-            throw new InvalidOperationException(
-                $"Taak niet gevonden als open taak in {filePath}. " +
-                "Het bestand is mogelijk gewijzigd sinds de laatste scan.");
-
-        lines[targetLine] = lines[targetLine].Replace("- [ ]", "- [x]");
-        await Task.Run(() => _fs.File.WriteAllLines(filePath, lines), ct);
 
         // Verify the write actually persisted — catches path mismatches (OneDrive, shadow copy, etc.)
         var written = await Task.Run(() => _fs.File.ReadAllLines(filePath), ct);

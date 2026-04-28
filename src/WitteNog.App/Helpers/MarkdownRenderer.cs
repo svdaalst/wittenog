@@ -1,17 +1,19 @@
 namespace WitteNog.App.Helpers;
 
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Markdig;
 
 public static class MarkdownRenderer
 {
-    // DisableHtml() strips raw HTML from markdown — closes the XSS hole that would otherwise
-    // let a hostile .md file (synced, imported, transcribed) inject <script> into the WebView,
-    // where it shares the JS context with NoteBlockDelegate / TipTapBridge and the [JSInvokable]
-    // C# methods exposed via DotNetObjectReference.
+    // We intentionally do NOT call .DisableHtml() here. We pre-inject our own HTML
+    // (wiki-link spans and inline-task buttons) before Markdig runs, and DisableHtml
+    // would escape that HTML — the user would see literal <button>...</button> text in
+    // their notes instead of a clickable checkbox. XSS from a hostile note's <script>
+    // is now blocked at execution time by the CSP in index.html (script-src 'self',
+    // no 'unsafe-inline').
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
-        .DisableHtml()
         .Build();
 
     private static readonly Regex WikiLinkRegex =
@@ -27,6 +29,13 @@ public static class MarkdownRenderer
     private static readonly Regex RelativeImgRegex =
         new(@"<img([^>]*) src=""(?!https?://|file://|data:)([^""]+)""",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // H4: caches the (path → base64 data URI) result so we don't re-read + re-encode the
+    // same image on every render. Key is the absolute path; value carries the file's
+    // mtime so an external change (re-paste, edit, delete + recreate) invalidates the
+    // entry on next access. Concurrent because Render() can be called from any thread.
+    private static readonly ConcurrentDictionary<string, (DateTime Mtime, string DataUri)>
+        _dataUriCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Renders markdown to HTML. WikiLinks become clickable spans with data-wikilink attributes.
@@ -120,11 +129,25 @@ public static class MarkdownRenderer
 
             try
             {
-                var bytes = File.ReadAllBytes(abs);
-                var b64 = Convert.ToBase64String(bytes);
-                return $"<img{attrs} src=\"data:{mime};base64,{b64}\"";
+                // H4: re-render is hot — Blazor re-runs Render() on every state change in
+                // this component or any sibling, and a 10-image note used to re-read +
+                // re-encode every byte every time. Cache by absolute path with the file's
+                // mtime as the freshness key so an external edit / re-paste invalidates.
+                var mtime = File.GetLastWriteTimeUtc(abs);
+                var dataUri = _dataUriCache.AddOrUpdate(
+                    abs,
+                    addValueFactory: _ => (mtime, BuildDataUri(abs, mime)),
+                    updateValueFactory: (_, cached) =>
+                        cached.Mtime == mtime ? cached : (mtime, BuildDataUri(abs, mime)));
+                return $"<img{attrs} src=\"{dataUri.DataUri}\"";
             }
             catch { return m.Value; }
         });
+    }
+
+    private static string BuildDataUri(string absPath, string mime)
+    {
+        var bytes = File.ReadAllBytes(absPath);
+        return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
     }
 }

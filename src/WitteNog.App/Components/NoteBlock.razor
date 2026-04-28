@@ -271,7 +271,10 @@
     private async Task DeleteAsync()
     {
         _showConfirm = false;
-        await Mediator.Send(new DeleteNoteCommand(Note.FilePath));
+        // Pass VaultPath so the handler can garbage-collect attachments referenced
+        // only by this note (M8). Without it, deleted clipboard screenshots would
+        // linger in attachments/ forever.
+        await Mediator.Send(new DeleteNoteCommand(Note.FilePath, VaultPath));
         await OnSaved.InvokeAsync();
     }
 
@@ -316,7 +319,12 @@
                         pngBytes = buf;
                     }
                 }
-                catch { /* fall through to Bitmap */ }
+                catch (Exception ex)
+                {
+                    // PNG-format path failed; fall through to Bitmap. M1: log so a
+                    // Ctrl+V that mysteriously "does nothing" leaves a diagnostic trail.
+                    Console.Error.WriteLine($"Clipboard PNG read failed, trying Bitmap: {ex.Message}");
+                }
             }
 
             // Fallback: Bitmap format → decode and re-encode as PNG
@@ -340,7 +348,13 @@
                     dr.ReadBytes(buf);
                     pngBytes = buf;
                 }
-                catch { /* no image on clipboard */ }
+                catch (Exception ex)
+                {
+                    // M1: clipboard either has no image, or the image is in a format
+                    // we can't decode. Log and return null so Ctrl+V silently falls
+                    // through to TipTap's default paste.
+                    Console.Error.WriteLine($"Clipboard Bitmap decode failed: {ex.Message}");
+                }
             }
 
             if (pngBytes == null) return null;
@@ -366,8 +380,12 @@
                 await fs.WriteAsync(pngBytes);
             return $"attachments/{Path.GetFileName(filePath)}";
         }
-        catch
+        catch (Exception ex)
         {
+            // M1: outermost guard — disk full, no write permission, vault path invalid,
+            // or any unexpected throw from the WinRT clipboard APIs. Log so the user
+            // (and we) can debug a paste that silently does nothing.
+            Console.Error.WriteLine($"Clipboard image save failed: {ex}");
             return null;
         }
 #else

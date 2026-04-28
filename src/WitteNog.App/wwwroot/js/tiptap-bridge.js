@@ -262,9 +262,13 @@ window.TipTapBridge = {
     _ensurePasteHandler() {
         if (this._pasteHandlerAttached) return;
         this._pasteHandlerAttached = true;
-        // Use keydown Ctrl+V — more reliable than paste event in MAUI WebView2
+        // Use keydown Ctrl+V — more reliable than paste event in MAUI WebView2.
+        // M2 guard: if the global handler in global-keybindings.js already cancelled
+        // the event (image paste or manual text paste), this duplicate handler must
+        // not fire — otherwise we'd save the clipboard image twice.
         document.addEventListener('keydown', async (e) => {
             if (!(e.ctrlKey && e.key === 'v')) return;
+            if (e.defaultPrevented) return;
             const editorEl = document.querySelector('.note-block.editing .tiptap-editor');
             if (!editorEl) return;
             const elementId = editorEl.id;
@@ -312,10 +316,14 @@ window.TipTapBridge = {
         this.editors[elementId] = editor;
         this._ensurePasteHandler();
 
-        // Attach keydown directly on the contenteditable — guaranteed to receive keyboard events
+        // Attach keydown directly on the contenteditable — guaranteed to receive keyboard events.
+        // M2 guard: capture-phase document handler in global-keybindings.js fires first;
+        // if it has already preventDefault'd (because there was an image OR because it
+        // manually inserted clipboard text), bow out so we don't double-process.
         const bridge = this;
         editor.view.dom.addEventListener('keydown', async (e) => {
             if (!(e.ctrlKey && e.key === 'v')) return;
+            if (e.defaultPrevented) return;
             const container = el.closest('.note-block');
             const dotNetRef = container?._noteBlockRef;
             if (!dotNetRef) return;

@@ -22,6 +22,15 @@ window.FlowBlockDelegate = {
                 dotNetRef.invokeMethodAsync('HandleFlowAction', action.dataset.action);
             }
         });
+
+        // Double-click on the preview SVG opens the canvas editor
+        element.addEventListener('dblclick', e => {
+            const preview = e.target.closest('.flow-preview');
+            if (preview) {
+                e.stopPropagation();
+                dotNetRef.invokeMethodAsync('HandleFlowAction', 'edit-flow');
+            }
+        });
     },
 
     renderPreview(svgEl, diagramJson) {

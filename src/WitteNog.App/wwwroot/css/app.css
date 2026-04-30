@@ -2033,28 +2033,101 @@ html, body {
 }
 
 .flow-actions-bar {
-    position: absolute;
-    top: 6px;
-    right: 0;
-    opacity: 0;
-    transition: opacity 0.15s;
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
 }
-.flow-block:hover .flow-actions-bar { opacity: 1; }
 
-.flow-edit-btn,
-.flow-delete-btn {
+.flow-edit-btn {
     background: none;
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 0.2rem 0.4rem;
     border-radius: 3px;
     font-size: 13px;
+    transition: background 0.15s, color 0.15s;
 }
-.flow-edit-btn:hover { color: var(--accent); }
-.flow-delete-btn:hover { color: var(--accent); }
+.flow-edit-btn:hover { background: var(--surface-2); color: var(--text); }
+
+/* ── Flow title bar ───────────────────────────────────────────────────── */
+
+.flow-title-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
+.flow-block-title {
+    margin: 0;
+    flex: 1;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+/* WikiLinks in the flow title */
+.flow-wiki-link {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    margin-right: 0.35em;
+    transition: color 0.15s;
+}
+.flow-wiki-link:hover { color: rgba(233, 69, 96, 0.7); }
+
+/* ✎ rename and ✕ delete in title bar — only visible on hover */
+.flow-rename-btn,
+.flow-delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.flow-block:hover .flow-rename-btn,
+.flow-block:hover .flow-delete-btn { opacity: 1; }
+.flow-rename-btn:hover { background: var(--surface-2); color: var(--text); }
+.flow-delete-btn:hover { background: var(--surface-2); color: var(--accent); }
+
+/* Rename input */
+.flow-rename-input {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--text);
+    padding: 0.2rem 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    min-width: 0;
+}
+
+.flow-rename-confirm,
+.flow-rename-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+.flow-rename-confirm:hover { border-color: var(--accent); color: var(--accent); }
+.flow-rename-cancel:hover  { background: var(--surface-2); }
 
 /* ── Flow canvas editor overlay ───────────────────────────────────────── */
 
@@ -2146,4 +2219,338 @@ html, body {
     stroke-width: 1.5;
     stroke-dasharray: 6 3;
     pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Drawing / Handwriting blocks
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Block container ─────────────────────────────────────────── */
+.drawing-block {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+/* ── Preview ─────────────────────────────────────────────────── */
+.drawing-preview {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    min-height: 120px;
+}
+
+.drawing-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+.drawing-empty-hint {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+/* ── Background patterns (preview + canvas wrapper) ─────────── */
+/* Light backgrounds so dark ink is visible (contrast with dark theme) */
+.drawing-bg-plain {
+    background-color: #fafaf5;
+}
+
+.drawing-bg-dot {
+    background-color: #fafaf5;
+    background-image: radial-gradient(#bbb 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+.drawing-bg-ruled {
+    background-color: #fafaf5;
+    background-image: repeating-linear-gradient(
+        transparent 0,
+        transparent 27px,
+        #c8d6e5 28px
+    );
+}
+
+/* ── Actions bar below preview ───────────────────────────────── */
+.drawing-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+}
+
+/* Title bar: H1 + ✎ rename button sit side by side */
+.drawing-title-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
+.drawing-block-title {
+    margin: 0;
+    flex: 1;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+/* WikiLinks in the drawing title — match .wiki-link underline style */
+.drawing-wiki-link {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    margin-right: 0.35em;
+    transition: color 0.15s;
+}
+.drawing-wiki-link:hover { color: rgba(233, 69, 96, 0.7); }
+
+/* ✎ rename trigger — only visible on hover */
+.drawing-rename-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.drawing-block:hover .drawing-rename-btn { opacity: 1; }
+.drawing-rename-btn:hover { background: var(--surface-2); color: var(--text); }
+
+/* Rename input (full-stem: may contain [[...]] tokens) */
+.drawing-rename-input {
+    flex: 1;
+    background: var(--surface-2);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--text);
+    padding: 0.2rem 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    min-width: 0;
+}
+
+.drawing-rename-confirm,
+.drawing-rename-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.drawing-rename-confirm:hover { border-color: var(--accent); color: var(--accent); }
+.drawing-rename-cancel:hover  { background: var(--surface-2); }
+
+.drawing-edit-btn,
+.drawing-delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+}
+
+.drawing-edit-btn:hover   { background: var(--surface-2); color: var(--text); }
+.drawing-delete-btn:hover { background: var(--surface-2); color: var(--accent); }
+
+/* ── "+ Tekening" button ─────────────────────────────────────── */
+.new-drawing-btn {
+    padding: 0.35rem 0.8rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+.new-drawing-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Drawing Canvas (full-screen editor overlay)
+   ═══════════════════════════════════════════════════════════════ */
+
+.drawing-canvas-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────── */
+.drawing-canvas-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.drawing-canvas-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-right: 0.5rem;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.drawing-canvas-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+/* ── Tool group ──────────────────────────────────────────────── */
+.tool-group {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.tool-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--text);
+    transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.tool-btn:hover  { background: var(--surface-2); }
+.tool-btn.active {
+    box-shadow: inset 0 0 0 2px var(--accent);
+    border-color: var(--accent);
+    background: var(--surface-2);
+}
+
+/* ── Color swatches ──────────────────────────────────────────── */
+.color-group {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.color-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.1s, border-color 0.1s;
+}
+
+.color-swatch:hover  { transform: scale(1.2); }
+.color-swatch.active { border-color: var(--accent); transform: scale(1.15); }
+
+/* ── Thickness buttons ───────────────────────────────────────── */
+.thickness-group {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.thickness-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.45rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    min-width: 28px;
+    text-align: center;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.thickness-btn:hover  { background: var(--surface-2); }
+.thickness-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--surface-2);
+}
+
+/* ── Background cycle button ─────────────────────────────────── */
+.bg-cycle-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition: background 0.12s;
+}
+.bg-cycle-btn:hover { background: var(--surface-2); }
+.bg-label { color: var(--text); font-weight: 600; }
+
+/* ── Save / Close buttons ────────────────────────────────────── */
+.canvas-save-btn,
+.canvas-close-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.3rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text);
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.canvas-save-btn  { border-color: var(--accent); }
+.canvas-save-btn:hover  { background: var(--accent); color: #fff; }
+.canvas-close-btn:hover { background: var(--surface-2); color: var(--accent); }
+
+/* ── Canvas wrapper + surface ────────────────────────────────── */
+.drawing-canvas-wrapper {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 1rem;
+}
+
+.drawing-canvas-surface {
+    /* CRITICAL: prevents WebView2 from intercepting pen/touch events for scroll */
+    touch-action: none;
+    cursor: crosshair;
+    display: block;
+    /* Show a thin border so the user can see the canvas boundary */
+    box-shadow: 0 0 0 1px var(--border), 2px 2px 8px rgba(0,0,0,0.3);
+    max-width: 100%;
 }

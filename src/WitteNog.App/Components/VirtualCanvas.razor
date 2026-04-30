@@ -41,6 +41,7 @@ else
                                ShowCreateDefNote="@(Tab.Type == TabType.TopicPage && !_hasDefNote)"
                                OnDefNoteCreated="RefreshAsync" />
                 <NewFlowButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnFlowCreated="RefreshAsync" />
+                <NewDrawingButton VaultPath="@VaultPath" PageLink="@Tab.Query" OnDrawingCreated="RefreshAsync" />
             }
         </div>
     </div>
@@ -81,10 +82,16 @@ else
                     <NoteBlock Note="@block.Note" VaultPath="@VaultPath" TabQuery="@Tab.Query" OnSaved="RefreshAsync" />
                 </div>
             }
-            else
+            else if (block.IsFlow)
             {
                 <div id="flow-@SanitizeId(block.Flow!.Id)">
                     <FlowBlock Flow="@block.Flow" VaultPath="@VaultPath" OnSaved="RefreshAsync" />
+                </div>
+            }
+            else if (block.IsDrawing)
+            {
+                <div id="drawing-@SanitizeId(block.Drawing!.Id)">
+                    <DrawingBlock Drawing="@block.Drawing" VaultPath="@VaultPath" OnChanged="RefreshAsync" />
                 </div>
             }
         }
@@ -143,10 +150,14 @@ else
             var flowsTask = Tab.Type == TabType.DailyPage
                 ? Mediator.Send(new GetFlowsForDateQuery(VaultPath, Tab.Query))
                 : Mediator.Send(new GetFlowsForTopicQuery(VaultPath, Tab.Query));
+            var drawingsTask = Tab.Type == TabType.DailyPage
+                ? Mediator.Send(new GetDrawingsForDateQuery(VaultPath, Tab.Query))
+                : Mediator.Send(new GetDrawingsForTopicQuery(VaultPath, Tab.Query));
 
-            await Task.WhenAll(notesTask, flowsTask);
-            var notes = notesTask.Result;
-            var flows = flowsTask.Result;
+            await Task.WhenAll(notesTask, flowsTask, drawingsTask);
+            var notes    = notesTask.Result;
+            var flows    = flowsTask.Result;
+            var drawings = drawingsTask.Result;
 
             // Auto-create placeholder note for daily pages
             if (Tab.Type == TabType.DailyPage && !notes.Any(n => n.Id == Tab.Query))
@@ -161,12 +172,13 @@ else
                 notes = await Mediator.Send(new GetNotesForDateQuery(VaultPath, Tab.Query));
             }
 
-            // Filename-matching note stays first; remaining notes + flows sorted by filename (Id)
+            // Filename-matching note stays first; remaining notes + flows + drawings sorted by filename (Id)
             var defNote = notes.FirstOrDefault(n => string.Equals(n.Id, Tab.Query, StringComparison.OrdinalIgnoreCase));
             var remaining = notes
                 .Where(n => n != defNote)
                 .Select(VaultBlock.FromNote)
                 .Concat(flows.Select(VaultBlock.FromFlow))
+                .Concat(drawings.Select(VaultBlock.FromDrawing))
                 .OrderBy(b => b.Id, StringComparer.OrdinalIgnoreCase);
 
             _hasDefNote = defNote is not null;

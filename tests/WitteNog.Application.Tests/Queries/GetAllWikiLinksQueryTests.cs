@@ -11,7 +11,10 @@ namespace WitteNog.Application.Tests.Queries;
 
 public class GetAllWikiLinksQueryTests
 {
-    private static IMediator BuildMediator(FakeNoteRepository noteRepo, FakeFlowRepository flowRepo)
+    private static IMediator BuildMediator(
+        FakeNoteRepository noteRepo,
+        FakeFlowRepository flowRepo,
+        FakeDrawingRepository drawingRepo)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -20,10 +23,14 @@ public class GetAllWikiLinksQueryTests
         services.AddSingleton<IMarkdownStorage>(noteRepo);
         services.AddSingleton<INoteRepository>(noteRepo);
         services.AddSingleton<IFlowRepository>(flowRepo);
+        services.AddSingleton<IDrawingRepository>(drawingRepo);
         services.AddSingleton<NoteParser>();
         services.AddSingleton<IWikiLinkParser, WikiLinkParser>();
         return services.BuildServiceProvider().GetRequiredService<IMediator>();
     }
+
+    private static IMediator BuildMediator(FakeNoteRepository noteRepo, FakeFlowRepository flowRepo) =>
+        BuildMediator(noteRepo, flowRepo, new FakeDrawingRepository(Array.Empty<Drawing>()));
 
     private static IMediator BuildMediator(FakeNoteRepository noteRepo) =>
         BuildMediator(noteRepo, new FakeFlowRepository(Array.Empty<FlowDiagram>()));
@@ -34,6 +41,11 @@ public class GetAllWikiLinksQueryTests
     private static FlowDiagram MakeFlow(string id, params string[] links) =>
         new(id, $"/vault/{id}.flow", id,
             Array.Empty<FlowNode>(), Array.Empty<FlowEdge>(),
+            links, DateTimeOffset.UtcNow);
+
+    private static Drawing MakeDrawing(string id, params string[] links) =>
+        new(id, $"/vault/{id}.drawing", id,
+            DrawingBackground.Plain, 1920, 1080, string.Empty,
             links, DateTimeOffset.UtcNow);
 
     [Fact]
@@ -125,6 +137,42 @@ public class GetAllWikiLinksQueryTests
             MakeFlow("[[Shared]]", "Shared")
         });
         var mediator = BuildMediator(noteRepo, flowRepo);
+
+        var result = await mediator.Send(new GetAllWikiLinksQuery("/vault"));
+
+        Assert.Single(result, l => l == "Shared");
+    }
+
+    [Fact]
+    public async Task Handle_DrawingFilenameLinks_IncludedInResult()
+    {
+        var noteRepo = new FakeNoteRepository(Array.Empty<AtomicNote>());
+        var flowRepo = new FakeFlowRepository(Array.Empty<FlowDiagram>());
+        var drawingRepo = new FakeDrawingRepository(new[]
+        {
+            MakeDrawing("[[2026-04-30]] [[Ontwerp]] Schets", "2026-04-30", "Ontwerp")
+        });
+        var mediator = BuildMediator(noteRepo, flowRepo, drawingRepo);
+
+        var result = await mediator.Send(new GetAllWikiLinksQuery("/vault"));
+
+        Assert.Contains("2026-04-30", result);
+        Assert.Contains("Ontwerp", result);
+    }
+
+    [Fact]
+    public async Task Handle_DrawingAndNoteShareLink_DeduplicatesIt()
+    {
+        var noteRepo = new FakeNoteRepository(new[]
+        {
+            MakeNote("a", "Shared")
+        });
+        var flowRepo = new FakeFlowRepository(Array.Empty<FlowDiagram>());
+        var drawingRepo = new FakeDrawingRepository(new[]
+        {
+            MakeDrawing("[[Shared]] tekening", "Shared")
+        });
+        var mediator = BuildMediator(noteRepo, flowRepo, drawingRepo);
 
         var result = await mediator.Send(new GetAllWikiLinksQuery("/vault"));
 

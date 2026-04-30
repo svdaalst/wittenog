@@ -9,11 +9,16 @@ public class GetAllWikiLinksQueryHandler : IRequestHandler<GetAllWikiLinksQuery,
 {
     private readonly INoteRepository _repo;
     private readonly IFlowRepository _flowRepo;
+    private readonly IDrawingRepository _drawingRepo;
 
-    public GetAllWikiLinksQueryHandler(INoteRepository repo, IFlowRepository flowRepo)
+    public GetAllWikiLinksQueryHandler(
+        INoteRepository repo,
+        IFlowRepository flowRepo,
+        IDrawingRepository drawingRepo)
     {
         _repo = repo;
         _flowRepo = flowRepo;
+        _drawingRepo = drawingRepo;
     }
 
     public async Task<IReadOnlyList<string>> Handle(GetAllWikiLinksQuery request, CancellationToken ct)
@@ -24,6 +29,9 @@ public class GetAllWikiLinksQueryHandler : IRequestHandler<GetAllWikiLinksQuery,
                 links.Add(link);
         await foreach (var flow in _flowRepo.ReadAllAsync(request.VaultPath, ct))
             foreach (var link in flow.WikiLinks)
+                links.Add(link);
+        await foreach (var drawing in _drawingRepo.ReadAllAsync(request.VaultPath, ct))
+            foreach (var link in drawing.WikiLinks)
                 links.Add(link);
         return links.OrderBy(l => l).ToList().AsReadOnly();
     }

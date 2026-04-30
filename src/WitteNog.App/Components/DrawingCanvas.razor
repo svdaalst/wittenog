@@ -1,0 +1,149 @@
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@using MediatR
+@using System.Text.Json
+@using WitteNog.Application.Commands
+@using WitteNog.Core.Models
+
+<div class="drawing-canvas-overlay" @ref="_overlay">
+    <div class="drawing-canvas-toolbar">
+        <span class="drawing-canvas-title">@(string.IsNullOrWhiteSpace(Drawing.Title) ? "Tekening" : Drawing.Title)</span>
+        <div class="drawing-canvas-toolbar-actions">
+
+            <div class="tool-group" title="Gereedschap">
+                <button class="tool-btn" data-action="tool-pen"         data-tool="pen"         title="Pen">✒️</button>
+                <button class="tool-btn" data-action="tool-pencil"      data-tool="pencil"      title="Potlood">✏️</button>
+                <button class="tool-btn" data-action="tool-highlighter" data-tool="highlighter" title="Markeerstift">🖍️</button>
+                <button class="tool-btn" data-action="tool-eraser"      data-tool="eraser"      title="Gummetje">🧽</button>
+            </div>
+
+            <div class="color-group" title="Kleur">
+                @foreach (var color in _colors)
+                {
+                    <button class="color-swatch"
+                            data-action="color"
+                            data-color="@color"
+                            style="background:@color"
+                            title="@color"></button>
+                }
+            </div>
+
+            <div class="thickness-group" title="Dikte">
+                @foreach (var t in _thicknesses)
+                {
+                    <button class="thickness-btn"
+                            data-action="thickness"
+                            data-thickness="@t"
+                            title="@t px">@t</button>
+                }
+            </div>
+
+            <button class="bg-cycle-btn" data-action="cycle-background" title="Achtergrond wisselen">
+                Achtergrond: <span class="bg-label">@_currentBackground</span>
+            </button>
+
+            <button class="canvas-save-btn"  data-action="save-canvas"  title="Opslaan">💾 Opslaan</button>
+            <button class="canvas-close-btn" data-action="close-canvas" title="Sluiten">✕ Sluiten</button>
+        </div>
+    </div>
+    <div id="@_wrapperId" class="drawing-canvas-wrapper drawing-bg-@_currentBackground">
+        <canvas id="@_canvasId" class="drawing-canvas-surface" @ref="_canvasEl"></canvas>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Drawing Drawing { get; set; } = null!;
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private readonly string _canvasId  = $"dc-{Guid.NewGuid():N}";
+    private readonly string _wrapperId = $"dw-{Guid.NewGuid():N}";
+    private ElementReference _canvasEl;
+    private ElementReference _overlay;
+    private DotNetObjectReference<DrawingCanvas>? _dotNetRef;
+    private bool _initialized;
+    private string _currentBackground = "plain";
+
+    private static readonly string[] _colors =
+    {
+        "#ffffff", "#e94560", "#ff9f43", "#ffd166",
+        "#06d6a0", "#118ab2", "#9b5de5", "#222222"
+    };
+    private static readonly int[] _thicknesses = { 1, 2, 4, 8, 16 };
+
+    protected override void OnParametersSet()
+    {
+        _currentBackground = Drawing.Background.ToString().ToLowerInvariant();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            _dotNetRef = DotNetObjectReference.Create(this);
+
+            var payload = new
+            {
+                imageBase64 = Drawing.ImageBase64,
+                background  = _currentBackground,
+                width       = Drawing.Width  > 0 ? Drawing.Width  : 1920,
+                height      = Drawing.Height > 0 ? Drawing.Height : 1080,
+            };
+            var payloadJson = JsonSerializer.Serialize(payload,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            await JS.InvokeVoidAsync(
+                "DrawingCanvasDelegate.attach",
+                _canvasEl, _overlay, _dotNetRef, payloadJson);
+        }
+    }
+
+    [JSInvokable]
+    public async Task SaveDrawing(string base64, string background, int width, int height)
+    {
+        try
+        {
+            var bg = background.ToLowerInvariant() switch
+            {
+                "dot"   => DrawingBackground.Dot,
+                "ruled" => DrawingBackground.Ruled,
+                _       => DrawingBackground.Plain,
+            };
+
+            var updated = Drawing with
+            {
+                ImageBase64  = base64,
+                Background   = bg,
+                Width        = width  > 0 ? width  : Drawing.Width,
+                Height       = height > 0 ? height : Drawing.Height,
+                LastModified = DateTimeOffset.UtcNow,
+            };
+
+            _currentBackground = background.ToLowerInvariant();
+
+            await Mediator.Send(new SaveDrawingCommand(updated));
+            await OnSaved.InvokeAsync();
+        }
+        catch
+        {
+            // Swallow serialisation errors — the canvas remains open
+        }
+    }
+
+    [JSInvokable]
+    public async Task CloseCanvas()
+        => await OnClose.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try { await JS.InvokeVoidAsync("DrawingCanvasDelegate.detach", _canvasId); }
+            catch { /* ignore JS errors on disposal */ }
+        }
+        _dotNetRef?.Dispose();
+    }
+}

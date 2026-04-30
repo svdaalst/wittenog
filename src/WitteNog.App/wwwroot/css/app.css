@@ -2255,23 +2255,22 @@ html, body {
 }
 
 /* ── Background patterns (preview + canvas wrapper) ─────────── */
-/* Light backgrounds so dark ink is visible (contrast with dark theme) */
 .drawing-bg-plain {
-    background-color: #fafaf5;
+    background-color: var(--bg);
 }
 
 .drawing-bg-dot {
-    background-color: #fafaf5;
-    background-image: radial-gradient(#bbb 1px, transparent 1px);
+    background-color: var(--bg);
+    background-image: radial-gradient(rgba(255,255,255,0.18) 1px, transparent 1px);
     background-size: 20px 20px;
 }
 
 .drawing-bg-ruled {
-    background-color: #fafaf5;
+    background-color: var(--bg);
     background-image: repeating-linear-gradient(
         transparent 0,
         transparent 27px,
-        #c8d6e5 28px
+        rgba(255,255,255,0.1) 28px
     );
 }
 

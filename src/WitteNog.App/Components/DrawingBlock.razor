@@ -1,0 +1,189 @@
+@inject IMediator Mediator
+@inject INavigationService NavService
+@inject IJSRuntime JS
+@inject WitteNog.App.Services.EditModeCoordinatorService EditModeCoordinator
+@implements IDisposable
+@using MediatR
+@using WitteNog.App.Models
+@using WitteNog.App.Services
+@using WitteNog.Application.Commands
+@using WitteNog.Core.Models
+
+<div class="drawing-block" @ref="_container">
+    @if (_showCanvas)
+    {
+        <DrawingCanvas Drawing="@Drawing" VaultPath="@VaultPath" OnSaved="OnCanvasSaved" OnClose="CloseCanvas" />
+    }
+    else
+    {
+        <div class="drawing-title-bar">
+            @if (_renaming)
+            {
+                @* Pre-fill with full stem so the user can also edit [[...]] link tokens *@
+                <input id="@_renameInputId" class="drawing-rename-input" type="text" value="@Drawing.Id" />
+                <button class="drawing-rename-confirm" data-action="confirm-rename" title="Opslaan">✓</button>
+                <button class="drawing-rename-cancel"  data-action="cancel-rename"  title="Annuleren">✕</button>
+            }
+            else
+            {
+                <h1 class="drawing-block-title">
+                    @foreach (var link in Drawing.WikiLinks)
+                    {
+                        <span class="drawing-wiki-link" @onclick="() => NavigateToLink(link)">@link</span>
+                        @:
+                    }
+                    @(string.IsNullOrWhiteSpace(Drawing.Title) ? (Drawing.WikiLinks.Count == 0 ? "(Naamloze tekening)" : "") : Drawing.Title)
+                </h1>
+                <button class="drawing-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+            }
+        </div>
+        <div class="drawing-preview drawing-bg-@BgClass">
+            @if (!string.IsNullOrWhiteSpace(Drawing.ImageBase64) && Drawing.ImageBase64.Length > 100)
+            {
+                <img class="drawing-image" src="data:image/png;base64,@Drawing.ImageBase64" alt="@Drawing.Title" />
+            }
+            else
+            {
+                <div class="drawing-empty-hint">Klik op ✏️ om te beginnen tekenen</div>
+            }
+        </div>
+        <div class="drawing-actions-bar">
+            <button class="drawing-edit-btn" data-action="edit-drawing" title="Bewerken">✏️</button>
+            <button class="drawing-delete-btn" data-action="confirm-delete-drawing" title="Verwijderen">✕</button>
+        </div>
+    }
+
+    @if (_showConfirm)
+    {
+        <div class="modal-overlay" data-action="cancel-delete-drawing">
+            <div class="modal">
+                <h3>Tekening verwijderen?</h3>
+                <p class="modal-body">@(string.IsNullOrWhiteSpace(Drawing.Title) ? "Naamloze tekening" : Drawing.Title)</p>
+                <div class="modal-actions">
+                    <button data-action="delete-drawing">Verwijderen</button>
+                    <button data-action="cancel-delete-drawing">Annuleren</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Drawing Drawing { get; set; } = null!;
+    [Parameter] public string VaultPath { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool   _showCanvas;
+    private bool   _showConfirm;
+    private bool   _renaming;
+    private readonly string _renameInputId = $"dr-{Guid.NewGuid():N}";
+    private ElementReference _container;
+    private DotNetObjectReference<DrawingBlock>? _dotNetRef;
+
+    private string BgClass => Drawing.Background.ToString().ToLowerInvariant();
+
+    private void NavigateToLink(string link)
+    {
+        var type = System.Text.RegularExpressions.Regex.IsMatch(link, @"^\d{4}-\d{2}-\d{2}$")
+            ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, link);
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("DrawingBlockDelegate.attach", _container, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task HandleDrawingAction(string action)
+    {
+        switch (action)
+        {
+            case "edit-drawing":
+                if (!_showCanvas)
+                {
+                    await EditModeCoordinator.TryEnterEditModeAsync(Drawing.Id, async () =>
+                    {
+                        _showCanvas = false;
+                        await InvokeAsync(StateHasChanged);
+                    });
+                    _showCanvas = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+                break;
+            case "start-rename":
+                _renaming = true;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "cancel-rename":
+                _renaming = false;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "confirm-rename":
+                await RenameAsync();
+                break;
+            case "confirm-delete-drawing":
+                _showConfirm = true;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "delete-drawing":
+                await Mediator.Send(new DeleteDrawingCommand(Drawing.FilePath));
+                _showConfirm = false;
+                await OnChanged.InvokeAsync();
+                break;
+            case "cancel-delete-drawing":
+                _showConfirm = false;
+                await InvokeAsync(StateHasChanged);
+                break;
+        }
+    }
+
+    private async Task RenameAsync()
+    {
+        var newStem = await JS.InvokeAsync<string>("getInputValue", _renameInputId);
+        newStem = newStem?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrEmpty(newStem) || newStem == Drawing.Id)
+        {
+            _renaming = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try { RenameDrawingCommandHandler.ValidateStem(newStem); }
+        catch (ArgumentException ex)
+        {
+            await JS.InvokeVoidAsync("alert", ex.Message);
+            return;   // keep rename UI open
+        }
+
+        _renaming = false;
+        await Mediator.Send(new RenameDrawingCommand(Drawing, newStem));
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task OnCanvasSaved()
+    {
+        _showCanvas = false;
+        EditModeCoordinator.ExitEditMode(Drawing.Id);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task CloseCanvas()
+    {
+        _showCanvas = false;
+        EditModeCoordinator.ExitEditMode(Drawing.Id);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        EditModeCoordinator.ExitEditMode(Drawing.Id);
+    }
+}

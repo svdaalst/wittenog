@@ -17,12 +17,32 @@
     }
     else
     {
+        <div class="flow-title-bar">
+            @if (_renaming)
+            {
+                <input id="@_renameInputId" class="flow-rename-input" type="text" value="@Flow.Id" />
+                <button class="flow-rename-confirm" data-action="confirm-rename" title="Opslaan">✓</button>
+                <button class="flow-rename-cancel"  data-action="cancel-rename"  title="Annuleren">✕</button>
+            }
+            else
+            {
+                <h1 class="flow-block-title">
+                    @foreach (var link in Flow.WikiLinks)
+                    {
+                        <span class="flow-wiki-link" @onclick="() => NavigateToLink(link)">@link</span>
+                        @:
+                    }
+                    @(string.IsNullOrWhiteSpace(Flow.Title) ? (Flow.WikiLinks.Count == 0 ? "(Naamloos diagram)" : "") : Flow.Title)
+                </h1>
+                <button class="flow-rename-btn" data-action="start-rename" title="Hernoemen">✎</button>
+                <button class="flow-delete-btn" data-action="confirm-delete-flow" title="Verwijderen">✕</button>
+            }
+        </div>
         <div class="flow-preview">
             <svg class="flow-diagram" @ref="_previewSvg"></svg>
         </div>
         <div class="flow-actions-bar">
             <button class="flow-edit-btn" data-action="edit-flow" title="Bewerken">✏️</button>
-            <button class="flow-delete-btn" data-action="confirm-delete-flow" title="Verwijderen">✕</button>
         </div>
     }
 
@@ -48,6 +68,8 @@
 
     private bool _showCanvas;
     private bool _showConfirm;
+    private bool _renaming;
+    private readonly string _renameInputId = $"fl-{Guid.NewGuid():N}";
     private bool _needsPreviewRender;
     private string _diagramJson = "{}";
     private ElementReference _container;
@@ -101,6 +123,17 @@
                     await InvokeAsync(StateHasChanged);
                 }
                 break;
+            case "start-rename":
+                _renaming = true;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "cancel-rename":
+                _renaming = false;
+                await InvokeAsync(StateHasChanged);
+                break;
+            case "confirm-rename":
+                await RenameAsync();
+                break;
             case "confirm-delete-flow":
                 _showConfirm = true;
                 await InvokeAsync(StateHasChanged);
@@ -115,6 +148,38 @@
                 await InvokeAsync(StateHasChanged);
                 break;
         }
+    }
+
+    private void NavigateToLink(string link)
+    {
+        var type = System.Text.RegularExpressions.Regex.IsMatch(link, @"^\d{4}-\d{2}-\d{2}$")
+            ? TabType.DailyPage : TabType.TopicPage;
+        NavService.OpenTab(type, link);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RenameAsync()
+    {
+        var newStem = await JS.InvokeAsync<string>("getInputValue", _renameInputId);
+        newStem = newStem?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrEmpty(newStem) || newStem == Flow.Id)
+        {
+            _renaming = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try { RenameFlowCommandHandler.ValidateStem(newStem); }
+        catch (ArgumentException ex)
+        {
+            await JS.InvokeVoidAsync("alert", ex.Message);
+            return;   // keep rename UI open
+        }
+
+        _renaming = false;
+        await Mediator.Send(new RenameFlowCommand(Flow, newStem));
+        await OnSaved.InvokeAsync();
     }
 
     private async Task OnCanvasSaved()

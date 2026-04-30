@@ -44,6 +44,10 @@ public static class MauiProgram
             new FlowRepository(
                 sp.GetRequiredService<IIoFileSystem>(),
                 sp.GetRequiredService<IWikiLinkParser>()));
+        builder.Services.AddSingleton<IDrawingRepository>(sp =>
+            new DrawingRepository(
+                sp.GetRequiredService<IIoFileSystem>(),
+                sp.GetRequiredService<IWikiLinkParser>()));
         builder.Services.AddSingleton<JsonSettingsProvider>();
         builder.Services.AddSingleton<ILinkMetadataService>(sp =>
             sp.GetRequiredService<JsonSettingsProvider>());

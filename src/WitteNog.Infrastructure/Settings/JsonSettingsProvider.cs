@@ -44,11 +44,19 @@ public class JsonSettingsProvider : ILinkMetadataService, IVaultSettings, ITaskC
         if (_loadedVault == vaultPath) return _settings;
         MigrateIfNeeded(vaultPath);
         var path = SettingsPath(vaultPath);
-        _settings = _fs.File.Exists(path)
-            ? JsonSerializer.Deserialize<VaultSettings>(_fs.File.ReadAllText(path)) ?? new VaultSettings()
-            : new VaultSettings();
-        _archivedSet = new HashSet<string>(_settings.ArchivedLinks, StringComparer.OrdinalIgnoreCase);
-        _loadedVault = vaultPath;
+        try
+        {
+            _settings = _fs.File.Exists(path)
+                ? JsonSerializer.Deserialize<VaultSettings>(_fs.File.ReadAllText(path)) ?? new VaultSettings()
+                : new VaultSettings();
+            _archivedSet = new HashSet<string>(_settings.ArchivedLinks, StringComparer.OrdinalIgnoreCase);
+            _loadedVault = vaultPath;
+        }
+        catch (IOException)
+        {
+            // File temporarily locked by another process (e.g. vault watcher fired during a write).
+            // Keep the existing cached settings rather than crashing.
+        }
         return _settings;
     }
 

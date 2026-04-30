@@ -61,6 +61,6 @@ public class VaultWatcher : IDisposable
     private static bool IsTrackedExtension(string path)
     {
         var ext = Path.GetExtension(path);
-        return ext is ".md" or ".flow";
+        return ext is ".md" or ".flow" or ".drawing";
     }
 }
